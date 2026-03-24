@@ -1,0 +1,17 @@
+appId: com.ai-docs.app
+productName: AI Docs
+directories:
+  buildResources: build
+files:
+  - electron/dist/**/*
+  - server/**/*
+  - client/dist/**/*
+  - node_modules/**/*
+  - package.json
+mac:
+  target: dmg
+  category: public.app-category.productivity
+win:
+  target: nsis
+linux:
+  target: AppImage
