@@ -1,4 +1,19 @@
-# AI Docs
+<p align="center">
+  <img src="docs/ai-docs-header.png" alt="AI Docs — AI-Native Document Editor" width="100%">
+</p>
+
+<p align="center">
+  <strong>An AI-native document editor with WYSIWYG markdown, LaTeX math, and multi-format export.</strong>
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/runtime-Bun-f9f1e1?logo=bun" alt="Bun">
+  <img src="https://img.shields.io/badge/React-19-61dafb?logo=react" alt="React 19">
+  <img src="https://img.shields.io/badge/MCP-compatible-blue" alt="MCP Compatible">
+  <img src="https://img.shields.io/badge/license-MIT-green" alt="MIT License">
+</p>
+
+---
 
 AI-powered document editor with WYSIWYG markdown editing, web research, and agentic AI writing.
 
