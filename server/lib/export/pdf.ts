@@ -63,7 +63,7 @@ function escapeHtml(text: string): string {
  * Handles headings, paragraphs, lists, code blocks, bold, italic,
  * links, images, blockquotes, horizontal rules, and tables.
  */
-function markdownToHtml(md: string): string {
+export function markdownToHtml(md: string): string {
   const lines = md.split("\n");
   const output: string[] = [];
   let inCodeBlock = false;
@@ -179,6 +179,19 @@ function markdownToHtml(md: string): string {
       continue;
     }
 
+    // Task list (check before UL since `- [x]` also matches UL pattern)
+    const taskMatch = line.match(/^(\s*)[*+-]\s+\[([ xX])\]\s+(.+)/);
+    if (taskMatch) {
+      if (inList !== "ul") {
+        flushList();
+        output.push('<ul class="task-list">');
+        inList = "ul";
+      }
+      const checked = taskMatch[2] !== " " ? " checked" : "";
+      output.push(`<li><input type="checkbox"${checked} disabled /> ${processInline(taskMatch[3])}</li>`);
+      continue;
+    }
+
     // Unordered list
     const ulMatch = line.match(/^(\s*)[*+-]\s+(.+)/);
     if (ulMatch) {
@@ -200,19 +213,6 @@ function markdownToHtml(md: string): string {
         inList = "ol";
       }
       output.push(`<li>${processInline(olMatch[2])}</li>`);
-      continue;
-    }
-
-    // Task list
-    const taskMatch = line.match(/^(\s*)[*+-]\s+\[([ xX])\]\s+(.+)/);
-    if (taskMatch) {
-      if (inList !== "ul") {
-        flushList();
-        output.push('<ul class="task-list">');
-        inList = "ul";
-      }
-      const checked = taskMatch[2] !== " " ? " checked" : "";
-      output.push(`<li><input type="checkbox"${checked} disabled /> ${processInline(taskMatch[3])}</li>`);
       continue;
     }
 

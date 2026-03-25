@@ -1,6 +1,25 @@
 import { db, schema } from "../../db/client";
 import { eq, and } from "drizzle-orm";
 import { newId } from "../nanoid";
+import { recordEvent } from "../undoManager";
+
+type UndoCtx = { groupId: string; seq: number } | undefined;
+
+async function record(ctx: UndoCtx, projectId: string, entityId: string, action: "create" | "update" | "delete", before: any, after: any, desc: string) {
+  if (!ctx) return;
+  await recordEvent({
+    projectId,
+    batchId: ctx.groupId,
+    sequence: ctx.seq,
+    entityType: "folders",
+    entityId,
+    action,
+    beforeJson: before ? JSON.stringify(before) : undefined,
+    afterJson: after ? JSON.stringify(after) : undefined,
+    source: "chat",
+    description: desc,
+  });
+}
 
 export const folderToolDefinitions = [
   {
@@ -78,7 +97,8 @@ export const folderToolDefinitions = [
 export async function executeFolderTool(
   name: string,
   args: Record<string, unknown>,
-  projectId: string
+  projectId: string,
+  undoContext?: UndoCtx
 ): Promise<{ success: boolean; result: unknown }> {
   const now = new Date().toISOString();
 
@@ -95,27 +115,38 @@ export async function executeFolderTool(
         updatedAt: now,
       });
       const [folder] = await db.select().from(schema.folders).where(eq(schema.folders.id, id));
+      await record(undoContext, projectId, id, "create", null, folder, `Created folder "${folder.name}"`);
       return { success: true, result: { message: `Created folder "${folder.name}"`, folder } };
     }
 
     case "rename_folder": {
+      const renameId = args.folder_id as string;
+      const [beforeRename] = await db.select().from(schema.folders).where(eq(schema.folders.id, renameId));
       await db.update(schema.folders)
         .set({ name: args.name as string, updatedAt: now })
-        .where(eq(schema.folders.id, args.folder_id as string));
-      const [folder] = await db.select().from(schema.folders).where(eq(schema.folders.id, args.folder_id as string));
+        .where(eq(schema.folders.id, renameId));
+      const [folder] = await db.select().from(schema.folders).where(eq(schema.folders.id, renameId));
+      await record(undoContext, projectId, renameId, "update", beforeRename, folder, `Renamed folder to "${folder.name}"`);
       return { success: true, result: { message: `Renamed folder to "${folder.name}"`, folder } };
     }
 
     case "delete_folder": {
-      await db.delete(schema.folders).where(eq(schema.folders.id, args.folder_id as string));
+      const delId = args.folder_id as string;
+      const [beforeDel] = await db.select().from(schema.folders).where(eq(schema.folders.id, delId));
+      await db.delete(schema.folders).where(eq(schema.folders.id, delId));
+      await record(undoContext, projectId, delId, "delete", beforeDel, null, `Deleted folder "${beforeDel?.name}"`);
       return { success: true, result: { message: "Folder deleted" } };
     }
 
     case "move_folder": {
+      const moveId = args.folder_id as string;
+      const [beforeMove] = await db.select().from(schema.folders).where(eq(schema.folders.id, moveId));
       const parentId = args.parent_id ? (args.parent_id as string) : null;
       await db.update(schema.folders)
         .set({ parentId, updatedAt: now })
-        .where(eq(schema.folders.id, args.folder_id as string));
+        .where(eq(schema.folders.id, moveId));
+      const [afterMove] = await db.select().from(schema.folders).where(eq(schema.folders.id, moveId));
+      await record(undoContext, projectId, moveId, "update", beforeMove, afterMove, `Moved folder "${beforeMove?.name}"`);
       return { success: true, result: { message: `Folder moved` } };
     }
 

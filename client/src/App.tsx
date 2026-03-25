@@ -14,6 +14,8 @@ export default function App() {
   const showSettings = useStore((s) => s.showSettings);
   const showStyleGuide = useStore((s) => s.showStyleGuide);
   const loadSettings = useStore((s) => s.loadSettings);
+  const undo = useStore((s) => s.undo);
+  const redo = useStore((s) => s.redo);
   const initializedRef = useRef(false);
 
   const [sidebarWidth, setSidebarWidth] = useState(240);
@@ -42,6 +44,24 @@ export default function App() {
     url.searchParams.set("project", project.id);
     window.history.replaceState({}, "", url.toString());
   }, [project]);
+
+  // Global undo/redo keyboard shortcuts
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (!(e.metaKey || e.ctrlKey) || e.key !== "z") return;
+      // Don't intercept if user is typing in the editor (TipTap handles its own undo)
+      const active = document.activeElement;
+      if (active?.closest(".tiptap") || active?.tagName === "TEXTAREA" || active?.tagName === "INPUT") return;
+      e.preventDefault();
+      if (e.shiftKey) {
+        redo();
+      } else {
+        undo();
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [undo, redo]);
 
   const onMouseDown = useCallback((target: "sidebar" | "chat", e: React.MouseEvent) => {
     e.preventDefault();

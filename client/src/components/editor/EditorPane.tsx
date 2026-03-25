@@ -241,6 +241,22 @@ export function EditorPane() {
             {activeDocument.wordCount ?? 0} words
           </span>
           <button
+            onClick={() => { useStore.getState().undo(); }}
+            disabled={!useStore.getState().canUndo}
+            className="text-xs text-zinc-400 hover:text-zinc-200 px-1.5 py-0.5 rounded hover:bg-zinc-800 disabled:opacity-30 disabled:cursor-default"
+            title="Undo AI changes (Cmd+Z outside editor)"
+          >
+            ↩
+          </button>
+          <button
+            onClick={() => { useStore.getState().redo(); }}
+            disabled={!useStore.getState().canRedo}
+            className="text-xs text-zinc-400 hover:text-zinc-200 px-1.5 py-0.5 rounded hover:bg-zinc-800 disabled:opacity-30 disabled:cursor-default"
+            title="Redo AI changes (Cmd+Shift+Z outside editor)"
+          >
+            ↪
+          </button>
+          <button
             onClick={() => setShowExport(true)}
             className="text-xs text-zinc-400 hover:text-zinc-200 px-2 py-0.5 rounded hover:bg-zinc-800"
           >

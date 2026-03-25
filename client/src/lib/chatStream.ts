@@ -128,6 +128,7 @@ export async function sendChatMessage(content: string, attachments?: ChatAttachm
           if (tc.success) {
             await getState().loadFolders();
             await getState().loadDocuments();
+            await getState().refreshUndoState();
           }
         }
 

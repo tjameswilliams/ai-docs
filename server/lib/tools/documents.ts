@@ -1,6 +1,25 @@
 import { db, schema } from "../../db/client";
 import { eq } from "drizzle-orm";
 import { newId } from "../nanoid";
+import { recordEvent } from "../undoManager";
+
+type UndoCtx = { groupId: string; seq: number } | undefined;
+
+async function record(ctx: UndoCtx, projectId: string, entityId: string, action: "create" | "update" | "delete", before: any, after: any, desc: string) {
+  if (!ctx) return;
+  await recordEvent({
+    projectId,
+    batchId: ctx.groupId,
+    sequence: ctx.seq,
+    entityType: "documents",
+    entityId,
+    action,
+    beforeJson: before ? JSON.stringify(before) : undefined,
+    afterJson: after ? JSON.stringify(after) : undefined,
+    source: "chat",
+    description: desc,
+  });
+}
 
 function countWords(text: string): number {
   return text.trim().split(/\s+/).filter(Boolean).length;
@@ -175,7 +194,8 @@ Tips: Use enough surrounding context in old_text to ensure a unique match. Inclu
 export async function executeDocumentTool(
   name: string,
   args: Record<string, unknown>,
-  projectId: string
+  projectId: string,
+  undoContext?: UndoCtx
 ): Promise<{ success: boolean; result: unknown }> {
   const now = new Date().toISOString();
 
@@ -195,6 +215,7 @@ export async function executeDocumentTool(
         updatedAt: now,
       });
       const [doc] = await db.select().from(schema.documents).where(eq(schema.documents.id, id));
+      await record(undoContext, projectId, id, "create", null, doc, `Created document "${doc.title}"`);
       return { success: true, result: { message: `Created document "${doc.title}"`, document: doc } };
     }
 
@@ -211,26 +232,27 @@ export async function executeDocumentTool(
     }
 
     case "update_document": {
+      const docId = args.document_id as string;
+      const [before] = await db.select().from(schema.documents).where(eq(schema.documents.id, docId));
       const updates: Record<string, unknown> = { updatedAt: now };
       if (args.title) updates.title = args.title;
       if (args.folder_id !== undefined) {
         updates.folderId = args.folder_id === "" ? null : args.folder_id;
       }
-      await db.update(schema.documents).set(updates).where(eq(schema.documents.id, args.document_id as string));
-      const [doc] = await db.select().from(schema.documents).where(eq(schema.documents.id, args.document_id as string));
+      await db.update(schema.documents).set(updates).where(eq(schema.documents.id, docId));
+      const [doc] = await db.select().from(schema.documents).where(eq(schema.documents.id, docId));
+      await record(undoContext, projectId, docId, "update", before, doc, `Updated document "${doc.title}"`);
       return { success: true, result: { message: `Updated document "${doc.title}"`, document: doc } };
     }
 
     case "update_document_content": {
       const docId = args.document_id as string;
+      const [before] = await db.select().from(schema.documents).where(eq(schema.documents.id, docId));
       const mode = (args.mode as string) || "replace";
       let newContent = args.content as string;
 
-      if (mode === "append") {
-        const [existing] = await db.select().from(schema.documents).where(eq(schema.documents.id, docId));
-        if (existing) {
-          newContent = (existing.content || "") + "\n" + newContent;
-        }
+      if (mode === "append" && before) {
+        newContent = (before.content || "") + "\n" + newContent;
       }
 
       await db.update(schema.documents).set({
@@ -240,11 +262,13 @@ export async function executeDocumentTool(
       }).where(eq(schema.documents.id, docId));
 
       const [doc] = await db.select().from(schema.documents).where(eq(schema.documents.id, docId));
+      await record(undoContext, projectId, docId, "update", before, doc, `Updated content of "${doc?.title}"`);
       return { success: true, result: { message: `Updated content of "${doc.title}" (${doc.wordCount} words)`, documentId: doc.id } };
     }
 
     case "patch_document": {
       const docId = args.document_id as string;
+      const [beforePatch] = await db.select().from(schema.documents).where(eq(schema.documents.id, docId));
       const operations = args.operations as Array<{
         op: string;
         old_text?: string;
@@ -359,6 +383,11 @@ export async function executeDocumentTool(
         updatedAt: now,
       }).where(eq(schema.documents.id, docId));
 
+      const [afterPatch] = await db.select().from(schema.documents).where(eq(schema.documents.id, docId));
+      if (applied.length > 0) {
+        await record(undoContext, projectId, docId, "update", beforePatch, afterPatch, `Patched "${doc.title}"`);
+      }
+
       return {
         success: failed.length === 0,
         result: {
@@ -412,15 +441,22 @@ export async function executeDocumentTool(
     }
 
     case "delete_document": {
-      await db.delete(schema.documents).where(eq(schema.documents.id, args.document_id as string));
+      const delId = args.document_id as string;
+      const [beforeDel] = await db.select().from(schema.documents).where(eq(schema.documents.id, delId));
+      await db.delete(schema.documents).where(eq(schema.documents.id, delId));
+      await record(undoContext, projectId, delId, "delete", beforeDel, null, `Deleted document "${beforeDel?.title}"`);
       return { success: true, result: { message: "Document deleted" } };
     }
 
     case "move_document": {
+      const moveId = args.document_id as string;
+      const [beforeMove] = await db.select().from(schema.documents).where(eq(schema.documents.id, moveId));
       const folderId = args.folder_id ? (args.folder_id as string) : null;
       await db.update(schema.documents)
         .set({ folderId, updatedAt: now })
-        .where(eq(schema.documents.id, args.document_id as string));
+        .where(eq(schema.documents.id, moveId));
+      const [afterMove] = await db.select().from(schema.documents).where(eq(schema.documents.id, moveId));
+      await record(undoContext, projectId, moveId, "update", beforeMove, afterMove, `Moved document "${beforeMove?.title}"`);
       return { success: true, result: { message: "Document moved" } };
     }
 

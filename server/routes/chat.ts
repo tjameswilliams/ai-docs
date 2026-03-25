@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { streamChat, estimateTokens, getContextWindowSize, summarizeConversation } from "../lib/llm";
 import { getToolDefinitions, executeToolCall } from "../lib/tools/index";
+import { generateGroupId } from "../lib/undoManager";
 import { db, schema } from "../db/client";
 import { eq } from "drizzle-orm";
 import { newId } from "../lib/nanoid";
@@ -145,6 +146,10 @@ app.post("/chat", async (c) => {
         const assistantMsgId = newId();
         send("assistant_msg_id", { id: assistantMsgId });
 
+        // Undo grouping: all tool calls in this chat turn share a batchId
+        const undoGroupId = generateGroupId();
+        let undoSeq = 0;
+
         while (true) {
 
           const midLoopTokens = estimateFullContextUsage(conversation, toolsJson);
@@ -247,7 +252,7 @@ app.post("/chat", async (c) => {
             // Route to external MCP server or built-in tool
             const result = mcpClientManager.isExternalTool(tc.function.name)
               ? await mcpClientManager.callTool(tc.function.name, args)
-              : await executeToolCall(tc.function.name, args, projectId);
+              : await executeToolCall(tc.function.name, args, projectId, { groupId: undoGroupId, seq: undoSeq++ });
 
             send("tool_call_result", {
               toolCallId: tc.id,

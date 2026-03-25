@@ -11,6 +11,7 @@
     "db:push": "bunx drizzle-kit push",
     "db:studio": "bunx drizzle-kit studio",
     "test": "bun test",
+    "test:coverage": "bun test --coverage",
     "mcp": "bun run server/lib/mcp/server.ts",
     "build:client": "cd client && npx vite build",
     "build:electron": "node scripts/build-electron.mjs",

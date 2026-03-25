@@ -39,10 +39,10 @@ export async function executeToolCall(
     const refTools = referenceToolDefinitions.map((t) => t.function.name);
 
     if (folderTools.includes(name)) {
-      return await executeFolderTool(name, args, projectId);
+      return await executeFolderTool(name, args, projectId, undoContext);
     }
     if (documentTools.includes(name)) {
-      return await executeDocumentTool(name, args, projectId);
+      return await executeDocumentTool(name, args, projectId, undoContext);
     }
     if (searchTools.includes(name)) {
       return await executeSearchTool(name, args, projectId);

@@ -47,7 +47,7 @@ async function fetchEmbeddings(texts: string[]): Promise<number[][]> {
   return sorted.map((d) => d.embedding);
 }
 
-function cosineSimilarity(a: number[], b: number[]): number {
+export function cosineSimilarity(a: number[], b: number[]): number {
   let dot = 0;
   let magA = 0;
   let magB = 0;
@@ -65,7 +65,7 @@ const CHUNK_TARGET_CHARS = 500;
 /**
  * Split document content into chunks by paragraphs, targeting ~500 chars each.
  */
-function chunkDocument(content: string): string[] {
+export function chunkDocument(content: string): string[] {
   const paragraphs = content.split(/\n\n+/).filter((p) => p.trim().length > 0);
   const chunks: string[] = [];
   let current = "";

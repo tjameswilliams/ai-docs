@@ -85,6 +85,20 @@ export const api = {
     return res.json() as Promise<{ url: string }>;
   },
 
+  // Undo/Redo
+  undo: (projectId: string) =>
+    request<{ success: boolean; label?: string; canUndo: boolean; canRedo: boolean }>(
+      `/projects/${projectId}/undo`, { method: "POST" }
+    ),
+  redo: (projectId: string) =>
+    request<{ success: boolean; label?: string; canUndo: boolean; canRedo: boolean }>(
+      `/projects/${projectId}/redo`, { method: "POST" }
+    ),
+  getHistory: (projectId: string) =>
+    request<{ canUndo: boolean; canRedo: boolean }>(
+      `/projects/${projectId}/history`
+    ),
+
   // Search
   searchDocuments: (projectId: string, query: string, topK = 10) =>
     request<Array<{

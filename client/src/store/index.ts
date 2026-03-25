@@ -59,6 +59,13 @@ interface AppState {
   setShowSettings: (v: boolean) => void;
   showStyleGuide: boolean;
   setShowStyleGuide: (v: boolean) => void;
+
+  // Undo/Redo
+  canUndo: boolean;
+  canRedo: boolean;
+  undo: () => Promise<void>;
+  redo: () => Promise<void>;
+  refreshUndoState: () => Promise<void>;
 }
 
 export const useStore = create<AppState>((set, get) => ({
@@ -73,6 +80,7 @@ export const useStore = create<AppState>((set, get) => ({
     const project = await api.getProject(id);
     set({ project, activeDocument: null });
     await Promise.all([get().loadFolders(), get().loadDocuments(), get().loadMessages()]);
+    get().refreshUndoState();
   },
   createProject: async (name) => {
     const project = await api.createProject({ name });
@@ -227,4 +235,54 @@ export const useStore = create<AppState>((set, get) => ({
   setShowSettings: (v) => set({ showSettings: v }),
   showStyleGuide: false,
   setShowStyleGuide: (v) => set({ showStyleGuide: v }),
+
+  // Undo/Redo
+  canUndo: false,
+  canRedo: false,
+  refreshUndoState: async () => {
+    const project = get().project;
+    if (!project) return;
+    try {
+      const state = await api.getHistory(project.id);
+      set({ canUndo: state.canUndo, canRedo: state.canRedo });
+    } catch { /* ignore */ }
+  },
+  undo: async () => {
+    const project = get().project;
+    if (!project) return;
+    const result = await api.undo(project.id);
+    set({ canUndo: result.canUndo, canRedo: result.canRedo });
+    if (result.success) {
+      // Reload data to reflect undone changes
+      await Promise.all([get().loadFolders(), get().loadDocuments()]);
+      // Refresh active document if it was affected
+      const active = get().activeDocument;
+      if (active) {
+        try {
+          const doc = await api.getDocument(active.id);
+          set({ activeDocument: doc });
+        } catch {
+          set({ activeDocument: null });
+        }
+      }
+    }
+  },
+  redo: async () => {
+    const project = get().project;
+    if (!project) return;
+    const result = await api.redo(project.id);
+    set({ canUndo: result.canUndo, canRedo: result.canRedo });
+    if (result.success) {
+      await Promise.all([get().loadFolders(), get().loadDocuments()]);
+      const active = get().activeDocument;
+      if (active) {
+        try {
+          const doc = await api.getDocument(active.id);
+          set({ activeDocument: doc });
+        } catch {
+          set({ activeDocument: null });
+        }
+      }
+    }
+  },
 }));
