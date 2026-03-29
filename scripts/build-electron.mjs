@@ -21,6 +21,7 @@ await esbuild.build({
     "@resvg/resvg-js-darwin-x64",
     "@resvg/resvg-js-win32-x64-msvc",
     "@resvg/resvg-js-linux-x64-gnu",
+    "pdfkit",
   ],
   banner: {
     js: `

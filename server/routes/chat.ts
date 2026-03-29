@@ -5,17 +5,27 @@ import { generateGroupId } from "../lib/undoManager";
 import { db, schema } from "../db/client";
 import { eq } from "drizzle-orm";
 import { newId } from "../lib/nanoid";
+import { runtime } from "../runtime";
+import { resolve } from "path";
+import { existsSync, readFileSync } from "fs";
 import { getSystemPrompt } from "../lib/systemPrompt";
 import { getStyleProfile } from "../lib/styleAnalyzer";
 import { mcpClientManager } from "../lib/mcp/clientManager";
 
 const app = new Hono();
 
+type MsgContent = string | Array<{ type: string; text?: string; image_url?: { url: string } }>;
+
+function contentToString(content: MsgContent): string {
+  if (typeof content === "string") return content;
+  return content.map((b) => b.text || "[image]").join(" ");
+}
+
 function estimateFullContextUsage(
-  conversation: Array<{ role: string; content: string }>,
+  conversation: Array<{ role: string; content: MsgContent }>,
   toolsJson: string
 ): number {
-  const convTokens = estimateTokens(conversation.map((m) => m.content).join("\n"));
+  const convTokens = estimateTokens(conversation.map((m) => contentToString(m.content)).join("\n"));
   const toolTokens = estimateTokens(toolsJson);
   return convTokens + toolTokens;
 }
@@ -23,7 +33,7 @@ function estimateFullContextUsage(
 function compactToolResults(
   conversation: Array<{
     role: string;
-    content: string;
+    content: MsgContent;
     tool_calls?: Array<{ id: string; type: string; function: { name: string; arguments: string } }>;
     tool_call_id?: string;
   }>,
@@ -36,6 +46,7 @@ function compactToolResults(
   const toCompact = toolIndices.slice(0, Math.max(0, toolIndices.length - keepRecent));
   for (const idx of toCompact) {
     const msg = conversation[idx];
+    if (typeof msg.content !== "string") continue;
     try {
       const parsed = JSON.parse(msg.content);
       msg.content = JSON.stringify({
@@ -44,6 +55,75 @@ function compactToolResults(
       });
     } catch { /* already compact */ }
   }
+}
+
+/**
+ * Transform messages with attachments into multimodal content blocks.
+ * Images become image_url blocks; documents become text blocks with content.
+ */
+function transformAttachments(
+  messages: Array<{ role: string; content: string; attachments?: Array<{ url: string; name: string; type: string }> }>
+): Array<{ role: string; content: string | Array<{ type: string; text?: string; image_url?: { url: string } }> }> {
+  return messages.map((msg) => {
+    if (!msg.attachments || msg.attachments.length === 0) {
+      return { role: msg.role, content: msg.content };
+    }
+
+    const contentBlocks: Array<{ type: string; text?: string; image_url?: { url: string } }> = [];
+
+    // Add text content first
+    if (msg.content) {
+      contentBlocks.push({ type: "text", text: msg.content });
+    }
+
+    for (const att of msg.attachments) {
+      if (att.type.startsWith("image/")) {
+        // Convert local uploads to base64 data URIs for the LLM
+        let imageUrl = att.url;
+        const localMatch = att.url.match(/^\/api\/uploads\/(.+)$/);
+        if (localMatch) {
+          const uploadsDir = resolve(runtime.getDataDir(), "uploads");
+          const filePath = resolve(uploadsDir, localMatch[1]);
+          if (existsSync(filePath)) {
+            try {
+              const data = readFileSync(filePath);
+              const base64 = Buffer.from(data).toString("base64");
+              const ext = localMatch[1].split(".").pop()?.toLowerCase() || "png";
+              const mimeMap: Record<string, string> = {
+                png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg",
+                gif: "image/gif", webp: "image/webp", svg: "image/svg+xml",
+              };
+              imageUrl = `data:${mimeMap[ext] || "image/png"};base64,${base64}`;
+            } catch { /* keep original URL */ }
+          }
+        }
+        contentBlocks.push({ type: "image_url", image_url: { url: imageUrl } });
+      } else {
+        // For non-image files (PDF, text, etc.), read content and include as text
+        const localMatch = att.url.match(/^\/api\/uploads\/(.+)$/);
+        if (localMatch) {
+          const uploadsDir = resolve(runtime.getDataDir(), "uploads");
+          const filePath = resolve(uploadsDir, localMatch[1]);
+          if (existsSync(filePath)) {
+            try {
+              const data = readFileSync(filePath, "utf-8");
+              contentBlocks.push({
+                type: "text",
+                text: `[Attached file: ${att.name}]\n\n${data}`,
+              });
+            } catch {
+              contentBlocks.push({
+                type: "text",
+                text: `[Attached file: ${att.name} — could not read content]`,
+              });
+            }
+          }
+        }
+      }
+    }
+
+    return { role: msg.role, content: contentBlocks.length === 1 && contentBlocks[0].type === "text" ? contentBlocks[0].text! : contentBlocks };
+  });
 }
 
 app.post("/chat", async (c) => {
@@ -97,14 +177,17 @@ app.post("/chat", async (c) => {
 
   let consecutiveErrors = 0;
 
+  // Transform messages with attachments into multimodal content blocks
+  const transformedMessages = transformAttachments(clientMessages);
+
   const conversation: Array<{
     role: string;
-    content: string;
+    content: string | Array<{ type: string; text?: string; image_url?: { url: string } }>;
     tool_calls?: Array<{ id: string; type: string; function: { name: string; arguments: string } }>;
     tool_call_id?: string;
   }> = [
     { role: "system", content: finalSystemPrompt },
-    ...clientMessages,
+    ...transformedMessages,
   ];
 
   const contextWindow = await getContextWindowSize();

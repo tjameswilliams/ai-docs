@@ -69,6 +69,24 @@ function MessageBubble({ message, isLast, isStreaming, onRestart }: {
   if (message.role === "user") {
     return (
       <div className="group/msg flex flex-col items-end">
+        {message.attachments && message.attachments.length > 0 && (
+          <div className="flex gap-1.5 mb-1 flex-wrap justify-end max-w-[85%]">
+            {message.attachments.map((att, i) => (
+              <div key={i} className="rounded-md overflow-hidden border border-zinc-700 bg-zinc-800">
+                {att.type.startsWith("image/") ? (
+                  <img src={att.url} alt={att.name} className="h-20 max-w-[160px] object-cover" />
+                ) : (
+                  <div className="px-2 py-1 text-[10px] text-zinc-400 flex items-center gap-1">
+                    <span className="text-zinc-500">
+                      {att.type.includes("pdf") ? "PDF" : "DOC"}
+                    </span>
+                    <span className="truncate max-w-[100px]">{att.name}</span>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
         <div className="max-w-[85%] px-3 py-2 rounded-lg bg-blue-600/20 text-sm whitespace-pre-wrap">
           {message.content}
         </div>

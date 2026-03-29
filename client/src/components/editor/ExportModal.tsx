@@ -46,7 +46,28 @@ export function ExportModal({ documentId, documentTitle, onClose }: ExportModalP
   const handlePrintPdf = () => {
     const iframe = iframeRef.current;
     if (!iframe?.contentWindow) return;
-    iframe.contentWindow.print();
+    // Wait for all images to load before triggering print
+    const images = iframe.contentDocument?.querySelectorAll("img") || [];
+    const unloaded = Array.from(images).filter((img) => !img.complete);
+    if (unloaded.length > 0) {
+      let remaining = unloaded.length;
+      const onReady = () => {
+        remaining--;
+        if (remaining <= 0) iframe.contentWindow!.print();
+      };
+      unloaded.forEach((img) => {
+        img.addEventListener("load", onReady);
+        img.addEventListener("error", onReady);
+      });
+      // Fallback: print after 3s regardless
+      setTimeout(() => iframe.contentWindow!.print(), 3000);
+    } else {
+      iframe.contentWindow.print();
+    }
+  };
+
+  const handleDownloadPdf = () => {
+    window.open(`/api/documents/${documentId}/export/pdf`, "_blank");
   };
 
   const handleDownloadHtml = () => {
@@ -157,10 +178,10 @@ export function ExportModal({ documentId, documentTitle, onClose }: ExportModalP
 
             <div className="border-t border-zinc-800 pt-4 space-y-2">
               <button
-                onClick={handlePrintPdf}
+                onClick={handleDownloadPdf}
                 className="w-full py-2 text-xs rounded bg-blue-600 hover:bg-blue-500 text-white font-medium"
               >
-                Print / Save as PDF
+                Download PDF
               </button>
               <button
                 onClick={handleDownloadDocx}
@@ -173,6 +194,12 @@ export function ExportModal({ documentId, documentTitle, onClose }: ExportModalP
                 className="w-full py-2 text-xs rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300"
               >
                 Download HTML
+              </button>
+              <button
+                onClick={handlePrintPdf}
+                className="w-full py-2 text-xs rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300"
+              >
+                Print
               </button>
               <button
                 onClick={handleDownloadMarkdown}

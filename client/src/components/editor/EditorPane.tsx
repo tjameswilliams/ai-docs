@@ -13,6 +13,7 @@ import { Image } from "@tiptap/extension-image";
 import { Markdown } from "tiptap-markdown";
 import { MathInline, MathBlock } from "../../extensions/mathExtension";
 import { mathMarkdownToHtml, mathHtmlToMarkdown } from "../../extensions/mathMarkdown";
+import { api } from "../../api/client";
 import "katex/dist/katex.min.css";
 import { useStore } from "../../store";
 import { useAutoSave } from "../../hooks/useAutoSave";
@@ -128,6 +129,42 @@ export function EditorPane() {
     editorProps: {
       attributes: {
         class: "outline-none min-h-full px-12 py-8 max-w-3xl mx-auto",
+      },
+      handleDrop(view, event, _slice, moved) {
+        if (moved || !event.dataTransfer?.files.length) return false;
+        const images = Array.from(event.dataTransfer.files).filter((f) =>
+          f.type.startsWith("image/")
+        );
+        if (images.length === 0) return false;
+        event.preventDefault();
+        const pos = view.posAtCoords({ left: event.clientX, top: event.clientY });
+        for (const file of images) {
+          api.upload(file).then(({ url }) => {
+            const node = view.state.schema.nodes.image.create({ src: url });
+            const tr = view.state.tr.insert(pos?.pos ?? view.state.selection.from, node);
+            view.dispatch(tr);
+          });
+        }
+        return true;
+      },
+      handlePaste(view, event) {
+        const items = event.clipboardData?.items;
+        if (!items) return false;
+        const images = Array.from(items).filter((item) =>
+          item.type.startsWith("image/")
+        );
+        if (images.length === 0) return false;
+        event.preventDefault();
+        for (const item of images) {
+          const file = item.getAsFile();
+          if (!file) continue;
+          api.upload(file).then(({ url }) => {
+            const node = view.state.schema.nodes.image.create({ src: url });
+            const tr = view.state.tr.replaceSelectionWith(node);
+            view.dispatch(tr);
+          });
+        }
+        return true;
       },
     },
     onUpdate: ({ editor }) => {

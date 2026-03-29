@@ -1,9 +1,18 @@
-import { app, BrowserWindow, Menu, dialog } from "electron";
+import { app, BrowserWindow, Menu, dialog, nativeImage } from "electron";
 import path from "path";
 import net from "net";
 
 // Set app name before any getPath calls to ensure unique userData directory
 app.setName("AI Docs");
+
+// Set dock icon on macOS (works in dev mode too)
+const iconPath = path.join(__dirname, "..", "icons", "icon.png");
+if (process.platform === "darwin" && app.dock) {
+  try {
+    const icon = nativeImage.createFromPath(iconPath);
+    if (!icon.isEmpty()) app.dock.setIcon(icon);
+  } catch { /* icon file may not exist in some environments */ }
+}
 
 let mainWindow: BrowserWindow | null = null;
 let server: any = null;
@@ -65,6 +74,7 @@ function createWindow(port: number) {
     minWidth: 900,
     minHeight: 600,
     title: "AI Docs",
+    icon: path.join(__dirname, "..", "icons", "icon.icns"),
     webPreferences: {
       preload: path.join(__dirname, "preload.cjs"),
       contextIsolation: true,

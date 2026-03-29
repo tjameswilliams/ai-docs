@@ -33,6 +33,7 @@ export async function sendChatMessage(content: string, attachments?: ChatAttachm
   const allMessages = [...getState().messages].map((m) => ({
     role: m.role,
     content: m.content,
+    ...(m.attachments && m.attachments.length > 0 ? { attachments: m.attachments } : {}),
   }));
 
   abortController = new AbortController();

@@ -11,7 +11,10 @@ files:
 mac:
   target: dmg
   category: public.app-category.productivity
+  icon: electron/icons/icon.icns
 win:
   target: nsis
+  icon: electron/icons/icon.ico
 linux:
   target: AppImage
+  icon: electron/icons/icon.png

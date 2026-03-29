@@ -264,13 +264,23 @@ export function markdownToHtml(md: string): string {
  * Replace local image src="/api/uploads/xxx" with base64 data URIs
  */
 async function resolveLocalImages(html: string): Promise<string> {
-  const imgRegex = /src="(\/api\/uploads\/([^"]+))"/g;
+  // Match both relative /api/uploads/... and absolute http://localhost:.../api/uploads/...
+  const imgRegex = /src="((?:https?:\/\/[^"]*)?\/api\/uploads\/([^"]+))"/g;
   let result = html;
   let match;
 
+  const uploadsDir = resolve(runtime.getDataDir(), "uploads");
+  const mimeMap: Record<string, string> = {
+    png: "image/png",
+    jpg: "image/jpeg",
+    jpeg: "image/jpeg",
+    gif: "image/gif",
+    webp: "image/webp",
+    svg: "image/svg+xml",
+  };
+
   while ((match = imgRegex.exec(html)) !== null) {
     const [fullMatch, _path, filename] = match;
-    const uploadsDir = resolve(runtime.getDataDir(), "uploads");
     const filePath = resolve(uploadsDir, filename);
 
     if (existsSync(filePath)) {
@@ -278,14 +288,6 @@ async function resolveLocalImages(html: string): Promise<string> {
         const data = readFileSync(filePath);
         const base64 = Buffer.from(data).toString("base64");
         const ext = filename.split(".").pop()?.toLowerCase() || "png";
-        const mimeMap: Record<string, string> = {
-          png: "image/png",
-          jpg: "image/jpeg",
-          jpeg: "image/jpeg",
-          gif: "image/gif",
-          webp: "image/webp",
-          svg: "image/svg+xml",
-        };
         const mime = mimeMap[ext] || "image/png";
         result = result.replace(fullMatch, `src="data:${mime};base64,${base64}"`);
       } catch {
