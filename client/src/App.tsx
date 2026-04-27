@@ -4,7 +4,108 @@ import { SidebarPane } from "./components/sidebar/SidebarPane";
 import { EditorPane } from "./components/editor/EditorPane";
 import { ChatPane } from "./components/chat/ChatPane";
 import { SettingsModal } from "./components/SettingsModal";
-import { StyleGuideModal } from "./components/StyleGuideModal";
+import { ExportModal } from "./components/editor/ExportModal";
+import { Avatar, IconButton, Pill, Icon } from "./components/ui";
+
+function TopBar() {
+  const project = useStore((s) => s.project);
+  const activeDocument = useStore((s) => s.activeDocument);
+  const saveStatus = useStore((s) => s.saveStatus);
+  const canUndo = useStore((s) => s.canUndo);
+  const canRedo = useStore((s) => s.canRedo);
+  const undo = useStore((s) => s.undo);
+  const redo = useStore((s) => s.redo);
+  const setShowExport = useStore((s) => s.setShowExport);
+  const setShowSettings = useStore((s) => s.setShowSettings);
+
+  return (
+    <div
+      className="flex items-center px-3 shrink-0 gap-2"
+      style={{
+        height: 44,
+        background: "var(--gradient-topbar)",
+        borderBottom: "1px solid #27272a",
+        boxShadow: "inset 0 1px 0 rgba(255,255,255,0.02), 0 1px 0 rgba(0,0,0,0.4)",
+      }}
+    >
+      {/* Logo tile (placeholder — swap for real artwork when available) */}
+      <Avatar kind="logo" size={22} />
+
+      {/* Breadcrumb: project / document */}
+      <div className="flex items-center gap-1.5 min-w-0 ml-1">
+        {project ? (
+          <>
+            <Icon name="folder" size={12} className="text-zinc-500 shrink-0" />
+            <span
+              className="truncate"
+              style={{ fontSize: 12, color: "#a1a1aa", maxWidth: 200 }}
+              title={project.name}
+            >
+              {project.name}
+            </span>
+            {activeDocument && (
+              <>
+                <span style={{ fontSize: 12, color: "#3f3f46" }}>/</span>
+                <span
+                  className="truncate"
+                  style={{ fontSize: 12, fontWeight: 500, color: "#e4e4e7", maxWidth: 280 }}
+                  title={activeDocument.title}
+                >
+                  {activeDocument.title || "Untitled"}
+                </span>
+              </>
+            )}
+          </>
+        ) : (
+          <span style={{ fontSize: 12, color: "#71717a" }}>AI Docs</span>
+        )}
+      </div>
+
+      {/* Save status pill */}
+      {activeDocument && (
+        <Pill
+          tone={saveStatus === "dirty" || saveStatus === "saving" ? "dirty" : "saved"}
+          dot
+        >
+          {saveStatus === "saving" ? "Saving" : saveStatus === "dirty" ? "Unsaved" : "Saved"}
+        </Pill>
+      )}
+
+      <div className="flex-1" />
+
+      {/* Right-side actions */}
+      <IconButton
+        icon="undo"
+        size="sm"
+        tooltip="Undo (⌘Z)"
+        disabled={!canUndo}
+        onClick={() => undo()}
+      />
+      <IconButton
+        icon="redo"
+        size="sm"
+        tooltip="Redo (⌘⇧Z)"
+        disabled={!canRedo}
+        onClick={() => redo()}
+      />
+      <div className="w-px h-5 mx-0.5" style={{ background: "#27272a" }} />
+      <IconButton
+        icon="export"
+        size="sm"
+        tooltip="Export"
+        disabled={!activeDocument}
+        onClick={() => setShowExport(true)}
+      />
+      <div className="w-px h-5 mx-0.5" style={{ background: "#27272a" }} />
+      <IconButton
+        icon="settings"
+        size="sm"
+        tooltip="Settings"
+        onClick={() => setShowSettings(true)}
+      />
+    </div>
+  );
+}
 
 export default function App() {
   const project = useStore((s) => s.project);
@@ -12,7 +113,9 @@ export default function App() {
   const projects = useStore((s) => s.projects);
   const loadProject = useStore((s) => s.loadProject);
   const showSettings = useStore((s) => s.showSettings);
-  const showStyleGuide = useStore((s) => s.showStyleGuide);
+  const showExport = useStore((s) => s.showExport);
+  const setShowExport = useStore((s) => s.setShowExport);
+  const activeDocument = useStore((s) => s.activeDocument);
   const loadSettings = useStore((s) => s.loadSettings);
   const undo = useStore((s) => s.undo);
   const redo = useStore((s) => s.redo);
@@ -90,37 +193,18 @@ export default function App() {
 
   return (
     <div className="h-screen flex flex-col bg-zinc-950 text-zinc-100 overflow-hidden">
-      {/* Top bar */}
-      <div className="h-10 flex items-center px-4 border-b border-zinc-800 bg-zinc-900 shrink-0">
-        <span className="text-sm font-semibold tracking-wide text-zinc-300">AI Docs</span>
-        {project && (
-          <span className="ml-3 text-xs text-zinc-500">/ {project.name}</span>
-        )}
-        <div className="flex-1" />
-        <button
-          onClick={() => useStore.getState().setShowStyleGuide(true)}
-          className="text-xs text-zinc-400 hover:text-zinc-200 px-2 py-1 rounded hover:bg-zinc-800"
-        >
-          Style Guide
-        </button>
-        <button
-          onClick={() => useStore.getState().setShowSettings(true)}
-          className="text-xs text-zinc-400 hover:text-zinc-200 px-2 py-1 rounded hover:bg-zinc-800"
-        >
-          Settings
-        </button>
-      </div>
+      <TopBar />
 
       {/* Main content */}
       <div className="flex flex-1 min-h-0">
         {/* Sidebar */}
-        <div style={{ width: sidebarWidth }} className="shrink-0 border-r border-zinc-800 bg-zinc-900">
+        <div style={{ width: sidebarWidth }} className="shrink-0">
           <SidebarPane />
         </div>
 
-        {/* Sidebar resize handle */}
+        {/* Sidebar resize handle (4px wide, transparent → blue tint on hover) */}
         <div
-          className="w-1 cursor-col-resize hover:bg-blue-500/30 active:bg-blue-500/50 shrink-0"
+          className="w-1 cursor-col-resize hover:bg-blue-500/30 active:bg-blue-500/50 shrink-0 transition-colors"
           onMouseDown={(e) => onMouseDown("sidebar", e)}
         />
 
@@ -131,18 +215,24 @@ export default function App() {
 
         {/* Chat resize handle */}
         <div
-          className="w-1 cursor-col-resize hover:bg-blue-500/30 active:bg-blue-500/50 shrink-0"
+          className="w-1 cursor-col-resize hover:bg-blue-500/30 active:bg-blue-500/50 shrink-0 transition-colors"
           onMouseDown={(e) => onMouseDown("chat", e)}
         />
 
         {/* Chat */}
-        <div style={{ width: chatWidth }} className="shrink-0 border-l border-zinc-800 bg-zinc-900">
+        <div style={{ width: chatWidth }} className="shrink-0">
           <ChatPane />
         </div>
       </div>
 
       {showSettings && <SettingsModal />}
-      {showStyleGuide && <StyleGuideModal />}
+      {showExport && activeDocument && (
+        <ExportModal
+          documentId={activeDocument.id}
+          documentTitle={activeDocument.title}
+          onClose={() => setShowExport(false)}
+        />
+      )}
     </div>
   );
 }

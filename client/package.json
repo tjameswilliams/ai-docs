@@ -26,6 +26,7 @@
     "eventsource-parser": "^3.0.0",
     "katex": "^0.16.40",
     "lowlight": "^3.3.0",
+    "lucide-react": "^1.11.0",
     "nanoid": "^5.1.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",

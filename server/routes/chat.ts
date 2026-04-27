@@ -1,9 +1,10 @@
 import { Hono } from "hono";
 import { streamChat, estimateTokens, getContextWindowSize, summarizeConversation } from "../lib/llm";
 import { getToolDefinitions, executeToolCall } from "../lib/tools/index";
+import { autoCompletePlanIfDone } from "../lib/tools/plans";
 import { generateGroupId } from "../lib/undoManager";
 import { db, schema } from "../db/client";
-import { eq } from "drizzle-orm";
+import { eq, and, notInArray } from "drizzle-orm";
 import { newId } from "../lib/nanoid";
 import { runtime } from "../runtime";
 import { resolve } from "path";
@@ -128,7 +129,7 @@ function transformAttachments(
 
 app.post("/chat", async (c) => {
   const body = await c.req.json();
-  const { messages: clientMessages, projectId, activeDocumentId, editorContext } = body;
+  const { messages: clientMessages, projectId, activeDocumentId, editorContext, chatMode } = body;
 
   // Build context
   const [project] = projectId
@@ -151,6 +152,36 @@ app.post("/chat", async (c) => {
   // Load style profile if available
   const styleProfile = projectId ? await getStyleProfile(projectId) : null;
 
+  // Load active plan if available
+  let activePlan: { id: string; title: string; description: string | null; status: string; steps: any[] } | undefined;
+  if (projectId) {
+    const [plan] = await db
+      .select()
+      .from(schema.plans)
+      .where(
+        and(
+          eq(schema.plans.projectId, projectId),
+          notInArray(schema.plans.status, ["completed", "archived"])
+        )
+      );
+    if (plan) {
+      const steps = await db
+        .select()
+        .from(schema.planSteps)
+        .where(eq(schema.planSteps.planId, plan.id));
+      const topLevel = steps.filter((s) => !s.parentId).sort((a, b) => a.order - b.order);
+      activePlan = {
+        ...plan,
+        steps: topLevel.map((step) => ({
+          ...step,
+          substeps: steps
+            .filter((s) => s.parentId === step.id)
+            .sort((a, b) => a.order - b.order),
+        })),
+      };
+    }
+  }
+
   const systemPrompt = getSystemPrompt({
     projectName: project?.name,
     folders: folders.map((f) => ({ id: f.id, name: f.name, parentId: f.parentId })),
@@ -159,6 +190,8 @@ app.post("/chat", async (c) => {
     activeDocumentTitle: activeDoc?.title,
     editorContext: editorContext || undefined,
     styleGuide: styleProfile?.guide || undefined,
+    activePlan,
+    chatMode: chatMode || "chat",
   });
 
   const builtInTools = getToolDefinitions();
@@ -345,6 +378,11 @@ app.post("/chat", async (c) => {
               success: result.success,
             });
 
+            // Notify frontend when plan tools are used
+            if (result.success && tc.function.name.match(/^(create_plan|update_plan|add_plan_steps|update_plan_step|remove_plan_steps|get_plan)$/)) {
+              send("plan_updated", {});
+            }
+
             let resultJson = JSON.stringify(result);
             if (resultJson.length > 20000) {
               resultJson = JSON.stringify({
@@ -369,6 +407,14 @@ app.post("/chat", async (c) => {
           content = "";
           thinking = "";
           toolCalls = [];
+        }
+
+        // Auto-complete plan if all steps are done but the LLM forgot
+        if (projectId) {
+          const planAutoCompleted = await autoCompletePlanIfDone(projectId);
+          if (planAutoCompleted) {
+            send("plan_updated", {});
+          }
         }
 
         send("done", {});

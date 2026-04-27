@@ -1,6 +1,8 @@
 import { useState, useRef, useCallback } from "react";
 import { api } from "../../api/client";
+import { useStore } from "../../store";
 import type { ChatAttachment } from "../../types";
+import { Button, IconButton, Kbd } from "../ui";
 
 interface ChatInputProps {
   onSend: (content: string, attachments?: ChatAttachment[]) => void;
@@ -9,12 +11,19 @@ interface ChatInputProps {
   isStreaming?: boolean;
 }
 
+const MAX_CHARS = 4000;
+
 export function ChatInput({ onSend, disabled, onStop, isStreaming }: ChatInputProps) {
   const [input, setInput] = useState("");
   const [attachments, setAttachments] = useState<ChatAttachment[]>([]);
   const [uploading, setUploading] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const chatMode = useStore((s) => s.chatMode);
+  const toggleChatMode = useStore((s) => s.toggleChatMode);
+  const setChatMode = useStore((s) => s.setChatMode);
+
+  const isPlan = chatMode === "plan";
 
   const handleSubmit = () => {
     if ((!input.trim() && attachments.length === 0) || disabled) return;
@@ -27,6 +36,11 @@ export function ChatInput({ onSend, disabled, onStop, isStreaming }: ChatInputPr
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Tab" && e.shiftKey) {
+      e.preventDefault();
+      toggleChatMode();
+      return;
+    }
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSubmit();
@@ -37,7 +51,7 @@ export function ChatInput({ onSend, disabled, onStop, isStreaming }: ChatInputPr
     setInput(e.target.value);
     const el = e.target;
     el.style.height = "auto";
-    el.style.height = Math.min(el.scrollHeight, 120) + "px";
+    el.style.height = Math.min(el.scrollHeight, 160) + "px";
   };
 
   const uploadFiles = useCallback(async (files: FileList | File[]) => {
@@ -84,34 +98,84 @@ export function ChatInput({ onSend, disabled, onStop, isStreaming }: ChatInputPr
     setAttachments((prev) => prev.filter((_, i) => i !== idx));
   };
 
-  const isImage = (type: string) =>
-    type.startsWith("image/");
-
   return (
-    <div className="p-3 border-t border-zinc-800" onDrop={handleDrop} onDragOver={handleDragOver}>
+    <div
+      className="p-3 shrink-0 transition-colors"
+      onDrop={handleDrop}
+      onDragOver={handleDragOver}
+      style={{
+        borderTop: "1px solid #27272a",
+        background: "var(--gradient-chat)",
+      }}
+    >
+      {/* Mode toggle row */}
+      <div className="flex items-center gap-2 mb-2">
+        <div
+          className="inline-flex items-center"
+          style={{
+            background: "#0a0a0c",
+            border: "1px solid #27272a",
+            borderRadius: 5,
+            padding: 2,
+            boxShadow: "inset 0 1px 0 rgba(0,0,0,0.3)",
+          }}
+        >
+          <button
+            onClick={() => setChatMode("chat")}
+            className="inline-flex items-center gap-1 transition-all"
+            style={{
+              padding: "4px 10px",
+              borderRadius: 3,
+              fontSize: 10.5,
+              fontWeight: !isPlan ? 500 : 400,
+              color: !isPlan ? "#fafafa" : "#71717a",
+              background: !isPlan ? "linear-gradient(180deg, #2d2d33 0%, #232328 100%)" : "transparent",
+              border: !isPlan ? "1px solid #3f3f46" : "1px solid transparent",
+              boxShadow: !isPlan ? "inset 0 1px 0 rgba(255,255,255,0.04), 0 1px 2px rgba(0,0,0,0.25)" : "none",
+            }}
+          >
+            Chat
+          </button>
+          <button
+            onClick={() => setChatMode("plan")}
+            className="inline-flex items-center gap-1 transition-all"
+            style={{
+              padding: "4px 10px",
+              borderRadius: 3,
+              fontSize: 10.5,
+              fontWeight: isPlan ? 500 : 400,
+              color: isPlan ? "#fde68a" : "#71717a",
+              background: isPlan ? "var(--gradient-plan-active)" : "transparent",
+              border: isPlan ? "1px solid rgba(217,119,6,0.4)" : "1px solid transparent",
+              boxShadow: isPlan ? "inset 0 1px 0 rgba(253,230,138,0.08)" : "none",
+            }}
+          >
+            Plan
+          </button>
+        </div>
+        <span className="flex-1" />
+        <Kbd>⇧⇥</Kbd>
+        <span style={{ fontSize: 9.5, color: "#52525b" }}>to toggle</span>
+      </div>
+
       {/* Attachment previews */}
       {attachments.length > 0 && (
         <div className="flex gap-2 mb-2 flex-wrap">
           {attachments.map((att, i) => (
             <div
               key={i}
-              className="relative group bg-zinc-800 rounded-md overflow-hidden border border-zinc-700"
+              className="relative group rounded-md overflow-hidden"
+              style={{ background: "#1c1c20", border: "1px solid #27272a" }}
             >
-              {isImage(att.type) ? (
-                <img
-                  src={att.url}
-                  alt={att.name}
-                  className="h-16 w-16 object-cover"
-                />
+              {att.type.startsWith("image/") ? (
+                <img src={att.url} alt={att.name} className="h-16 w-16 object-cover" />
               ) : (
                 <div className="h-16 w-16 flex items-center justify-center px-1">
                   <div className="text-center">
-                    <div className="text-lg text-zinc-500">
+                    <div className="text-base text-zinc-500 font-mono">
                       {att.type.includes("pdf") ? "PDF" : "DOC"}
                     </div>
-                    <div className="text-[8px] text-zinc-600 truncate max-w-[56px]">
-                      {att.name}
-                    </div>
+                    <div className="text-[8px] text-zinc-600 truncate max-w-[56px]">{att.name}</div>
                   </div>
                 </div>
               )}
@@ -124,65 +188,100 @@ export function ChatInput({ onSend, disabled, onStop, isStreaming }: ChatInputPr
             </div>
           ))}
           {uploading && (
-            <div className="h-16 w-16 flex items-center justify-center bg-zinc-800 rounded-md border border-zinc-700">
-              <span className="text-[10px] text-zinc-500">...</span>
+            <div
+              className="h-16 w-16 flex items-center justify-center rounded-md"
+              style={{ background: "#1c1c20", border: "1px solid #27272a", fontSize: 10, color: "#71717a" }}
+            >
+              ...
             </div>
           )}
         </div>
       )}
 
-      <div className="flex gap-2 items-end">
-        {/* Attach button */}
-        <button
-          onClick={() => fileInputRef.current?.click()}
-          disabled={disabled || uploading}
-          className="px-2 py-2 text-zinc-500 hover:text-zinc-300 rounded-lg hover:bg-zinc-800 shrink-0 disabled:opacity-50"
-          title="Attach files (images, PDFs, documents)"
-        >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={1.5}
-              d="M18.375 12.739l-7.693 7.693a4.5 4.5 0 01-6.364-6.364l10.94-10.94A3 3 0 1119.5 7.372L8.552 18.32m.009-.01l-.01.01m5.699-9.941l-7.81 7.81a1.5 1.5 0 002.112 2.13"
-            />
-          </svg>
-        </button>
-        <input
-          ref={fileInputRef}
-          type="file"
-          multiple
-          accept="image/*,.pdf,.txt,.md,.markdown,.csv,.json,.doc,.docx"
-          onChange={handleFileSelect}
-          className="hidden"
-        />
-
+      {/* Composer bubble */}
+      <div
+        className="transition-colors"
+        style={{
+          background: isPlan ? "rgba(120,53,15,0.18)" : "#16161a",
+          border: "1px solid",
+          borderColor: isPlan ? "rgba(180,83,9,0.5)" : "#27272a",
+          borderRadius: 8,
+          boxShadow: isPlan
+            ? "0 0 0 3px rgba(180,83,9,0.08), inset 0 1px 0 rgba(0,0,0,0.2)"
+            : "inset 0 1px 0 rgba(0,0,0,0.2)",
+        }}
+      >
         <textarea
           ref={textareaRef}
           value={input}
           onChange={handleInput}
           onKeyDown={handleKeyDown}
-          placeholder={attachments.length > 0 ? "Add a message about these files..." : "Ask AI to help with your documents..."}
+          placeholder={
+            isPlan
+              ? "Describe what you want to plan…"
+              : attachments.length > 0
+              ? "Add a message about these files…"
+              : "Ask AI to help with your documents…"
+          }
           disabled={disabled}
-          rows={1}
-          className="flex-1 px-3 py-2 text-sm rounded-lg bg-zinc-800 border border-zinc-700 focus:border-blue-500 focus:outline-none resize-none disabled:opacity-50"
+          rows={2}
+          className="w-full resize-none outline-none bg-transparent"
+          style={{
+            padding: "10px 12px",
+            fontSize: 12.5,
+            lineHeight: 1.5,
+            color: isPlan ? "#fde68a" : "#e4e4e7",
+            minHeight: 48,
+            maxHeight: 160,
+          }}
         />
-        {isStreaming ? (
-          <button
-            onClick={onStop}
-            className="px-3 py-2 text-sm rounded-lg bg-red-600 hover:bg-red-500 text-white shrink-0"
+        {/* Internal toolbar */}
+        <div
+          className="flex items-center gap-0.5 px-2 py-1.5"
+          style={{
+            borderTop: "1px solid",
+            borderTopColor: isPlan ? "rgba(180,83,9,0.25)" : "#27272a",
+          }}
+        >
+          <IconButton
+            icon="attach"
+            size="sm"
+            tooltip="Attach files"
+            disabled={disabled || uploading}
+            onClick={() => fileInputRef.current?.click()}
+          />
+          <input
+            ref={fileInputRef}
+            type="file"
+            multiple
+            accept="image/*,.pdf,.txt,.md,.markdown,.csv,.json,.doc,.docx"
+            onChange={handleFileSelect}
+            className="hidden"
+          />
+          <span className="flex-1" />
+          <span
+            className="font-mono mr-2"
+            style={{ fontSize: 9.5, color: input.length > MAX_CHARS ? "#f87171" : "#52525b" }}
           >
-            Stop
-          </button>
-        ) : (
-          <button
-            onClick={handleSubmit}
-            disabled={(!input.trim() && attachments.length === 0) || disabled}
-            className="px-3 py-2 text-sm rounded-lg bg-blue-600 hover:bg-blue-500 text-white shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            Send
-          </button>
-        )}
+            {input.length} / {MAX_CHARS}
+          </span>
+          {isStreaming ? (
+            <Button variant="destructive" size="sm" icon="stop" onClick={onStop}>
+              Stop
+            </Button>
+          ) : (
+            <Button
+              variant={isPlan ? "plan" : "primary"}
+              size="sm"
+              icon={isPlan ? "math" : "send"}
+              kbd="↵"
+              disabled={(!input.trim() && attachments.length === 0) || disabled}
+              onClick={handleSubmit}
+            >
+              {isPlan ? "Plan" : "Send"}
+            </Button>
+          )}
+        </div>
       </div>
     </div>
   );

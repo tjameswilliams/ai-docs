@@ -92,6 +92,30 @@ export interface HistoryState {
   canRedo: boolean;
 }
 
+export interface PlanStep {
+  id: string;
+  planId: string;
+  parentId: string | null;
+  title: string;
+  description: string | null;
+  status: "pending" | "in_progress" | "completed" | "skipped";
+  order: number;
+  substeps?: PlanStep[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Plan {
+  id: string;
+  projectId: string;
+  title: string;
+  description: string | null;
+  status: "draft" | "approved" | "in_progress" | "completed" | "archived";
+  steps: PlanStep[];
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface McpServerConfig {
   id: string;
   name: string;

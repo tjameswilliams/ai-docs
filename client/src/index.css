@@ -1,8 +1,122 @@
 @import "tailwindcss";
 
+/* ==========================================================================
+   AI Studio Design Tokens (theme — Tailwind v4 @theme block)
+   Source: design_handoff_ai_studio/tokens/colors_and_type.css
+   ========================================================================== */
 @theme {
+  /* Custom zinc stops */
   --color-zinc-850: #1f1f23;
   --color-zinc-925: #131316;
+
+  /* Semantic surfaces — usable as bg-app, bg-canvas, bg-panel, bg-elevated, bg-input */
+  --color-bg-app: #09090b;
+  --color-bg-canvas: #131316;
+  --color-bg-panel: #18181b;
+  --color-bg-elevated: #1f1f23;
+  --color-bg-input: #27272a;
+  --color-bg-input-hover: #3f3f46;
+
+  /* Semantic foreground — text-fg-1 .. text-fg-faint */
+  --color-fg-1: #fafafa;
+  --color-fg-2: #e4e4e7;
+  --color-fg-3: #d4d4d8;
+  --color-fg-muted: #a1a1aa;
+  --color-fg-subtle: #71717a;
+  --color-fg-faint: #52525b;
+
+  /* Semantic borders — border-subtle, border-default, border-strong */
+  --color-border-subtle: #27272a;
+  --color-border-default: #3f3f46;
+  --color-border-strong: #52525b;
+
+  /* Functional accents */
+  --color-accent: #3b82f6;
+  --color-accent-hover: #60a5fa;
+  --color-success: #10b981;
+  --color-danger: #ef4444;
+  --color-warning: #f59e0b;
+
+  /* Type families */
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+    "Liberation Mono", "Courier New", monospace;
+
+  /* Tracking */
+  --tracking-widest: 0.12em;
+}
+
+/* ==========================================================================
+   Non-Tailwind tokens (CSS vars — referenced inline by components for
+   gradients, shadows, motion that Tailwind utilities don't cleanly cover)
+   ========================================================================== */
+:root {
+  /* Brand gradient (logo tile + assistant avatar — marketing color use) */
+  --brand-gradient: linear-gradient(135deg, #6366f1 0%, #d946ef 50%, #22d3ee 100%);
+  --brand-gradient-soft: linear-gradient(135deg, #1e1b4b 0%, #4c1d95 60%, #6d28d9 100%);
+
+  /* Surface gradients used by topbar / sidebar / chat header */
+  --gradient-topbar: linear-gradient(180deg, #1c1c20 0%, #16161a 100%);
+  --gradient-sidebar: linear-gradient(180deg, #16161a 0%, #131316 100%);
+  --gradient-chat: linear-gradient(180deg, #131316 0%, #0f0f12 100%);
+  --gradient-chat-header: linear-gradient(180deg, #18181b 0%, #131316 100%);
+
+  /* Editor canvas radial vignette */
+  --gradient-canvas: radial-gradient(ellipse at center, #18181b 0%, #09090b 80%);
+
+  /* Sidebar row active state */
+  --gradient-row-active: linear-gradient(
+    180deg,
+    rgba(59, 130, 246, 0.18) 0%,
+    rgba(59, 130, 246, 0.08) 100%
+  );
+
+  /* Plan-mode amber tint */
+  --gradient-plan-active: linear-gradient(
+    180deg,
+    rgba(180, 83, 9, 0.6) 0%,
+    rgba(120, 53, 15, 0.7) 100%
+  );
+
+  /* Shadows */
+  --shadow-popover: 0 8px 24px rgba(0, 0, 0, 0.4), 0 2px 6px rgba(0, 0, 0, 0.3);
+  --shadow-modal: 0 24px 64px rgba(0, 0, 0, 0.6), 0 4px 12px rgba(0, 0, 0, 0.4);
+  --ring-focus: 0 0 0 2px rgba(59, 130, 246, 0.5);
+
+  /* Motion */
+  --ease-out: cubic-bezier(0.2, 0, 0, 1);
+  --dur-fast: 120ms;
+  --dur-normal: 180ms;
+  --dur-slow: 320ms;
+}
+
+/* Button hover/active — gradient swaps via CSS var (Tailwind utilities can't
+   express a multi-stop linear-gradient cleanly). */
+.ai-btn:hover:not(:disabled) {
+  background: var(--ai-btn-bg-hover) !important;
+}
+.ai-btn:active:not(:disabled) {
+  box-shadow: var(--ai-btn-shadow-active) !important;
+}
+
+/* IconButton hover — solid color swap is fine in Tailwind, but inert when
+   a variant sets background inline so we mirror via CSS var here too. */
+.ai-icon-btn:hover:not(:disabled) {
+  background: var(--ai-icon-btn-bg-hover);
+  color: var(--ai-icon-btn-fg-hover);
+}
+
+/* Bouncing dot used in streaming indicator */
+.ai-bounce-dot {
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #a1a1aa;
+  animation: ai-bounce 1.4s ease-in-out infinite;
+}
+@keyframes ai-bounce {
+  0%, 80%, 100% { transform: translateY(0); opacity: 0.4; }
+  40% { transform: translateY(-3px); opacity: 1; }
 }
 
 * {

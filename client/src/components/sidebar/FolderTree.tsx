@@ -1,6 +1,7 @@
-import { useState, useRef } from "react";
+import { useState } from "react";
 import { useStore } from "../../store";
 import type { Folder, Document } from "../../types";
+import { Icon } from "../ui";
 
 export function FolderTree() {
   const folders = useStore((s) => s.folders);
@@ -66,6 +67,19 @@ export function FolderTree() {
     setDragItem(null);
   };
 
+  // Sidebar row used for both folders and documents.
+  // active = blue tint gradient + 1px blue border + 2px glowing left rail.
+  // hover  = rgba(63,63,70,0.4) bg.
+  const rowClass = "flex items-center gap-1.5 px-2.5 text-xs cursor-pointer relative transition-all duration-[120ms] group";
+  const rowStyle = (active: boolean, depth: number) => ({
+    paddingLeft: `${depth * 12 + 10}px`,
+    height: 26,
+    borderRadius: 5,
+    color: active ? "#fafafa" : "#a1a1aa",
+    background: active ? "var(--gradient-row-active)" : "transparent",
+    border: active ? "1px solid rgba(59,130,246,0.25)" : "1px solid transparent",
+  });
+
   const renderFolder = (folder: Folder, depth: number = 0) => {
     const isExpanded = expandedFolders.has(folder.id);
     const childFolders = getChildFolders(folder.id);
@@ -74,8 +88,8 @@ export function FolderTree() {
     return (
       <div key={folder.id}>
         <div
-          className="flex items-center gap-1 px-2 py-0.5 text-xs hover:bg-zinc-800 cursor-pointer rounded group"
-          style={{ paddingLeft: `${depth * 12 + 8}px` }}
+          className={rowClass + " hover:bg-[rgba(63,63,70,0.4)]"}
+          style={rowStyle(false, depth)}
           onClick={() => toggleFolder(folder.id)}
           onContextMenu={(e) => handleContextMenu(e, "folder", folder.id)}
           draggable
@@ -83,8 +97,16 @@ export function FolderTree() {
           onDragOver={(e) => e.preventDefault()}
           onDrop={(e) => handleDrop(folder.id, e)}
         >
-          <span className="text-zinc-500 w-3 text-center shrink-0">{isExpanded ? "v" : ">"}</span>
-          <span className="text-zinc-400 shrink-0">📁</span>
+          <Icon
+            name={isExpanded ? "caret-d" : "caret-r"}
+            size={11}
+            className="text-zinc-500 shrink-0"
+          />
+          <Icon
+            name={isExpanded ? "folder-open" : "folder"}
+            size={13}
+            className="text-zinc-400 shrink-0"
+          />
           {renaming?.id === folder.id ? (
             <input
               value={renaming.name}
@@ -96,7 +118,7 @@ export function FolderTree() {
               onClick={(e) => e.stopPropagation()}
             />
           ) : (
-            <span className="truncate text-zinc-300">{folder.name}</span>
+            <span className="truncate">{folder.name}</span>
           )}
         </div>
         {isExpanded && (
@@ -114,14 +136,31 @@ export function FolderTree() {
     return (
       <div
         key={doc.id}
-        className={`flex items-center gap-1 px-2 py-0.5 text-xs cursor-pointer rounded ${isActive ? "bg-blue-600/20 text-blue-300" : "hover:bg-zinc-800 text-zinc-300"}`}
-        style={{ paddingLeft: `${depth * 12 + 20}px` }}
+        className={rowClass + " hover:bg-[rgba(63,63,70,0.4)]"}
+        style={rowStyle(isActive, depth)}
         onClick={() => setActiveDocument(doc)}
         onContextMenu={(e) => handleContextMenu(e, "document", doc.id)}
         draggable
         onDragStart={() => setDragItem({ id: doc.id, type: "document" })}
       >
-        <span className="text-zinc-500 shrink-0">📄</span>
+        {/* Glowing left rail when active */}
+        {isActive && (
+          <div
+            className="absolute"
+            style={{
+              left: -1,
+              top: 6,
+              bottom: 6,
+              width: 2,
+              background: "#3b82f6",
+              borderRadius: "0 2px 2px 0",
+              boxShadow: "0 0 8px #3b82f6",
+            }}
+          />
+        )}
+        {/* Spacer where folder caret would be */}
+        <span style={{ width: 11 }} />
+        <Icon name="file-text" size={13} className={isActive ? "text-blue-400 shrink-0" : "text-zinc-500 shrink-0"} />
         {renaming?.id === doc.id ? (
           <input
             value={renaming.name}
@@ -141,7 +180,7 @@ export function FolderTree() {
 
   return (
     <div
-      className="flex-1 overflow-auto py-1"
+      className="flex-1 overflow-auto py-1 px-1.5"
       onContextMenu={(e) => handleContextMenu(e, "root")}
       onDragOver={(e) => e.preventDefault()}
       onDrop={(e) => handleDrop(null, e)}
@@ -160,59 +199,72 @@ export function FolderTree() {
         <>
           <div className="fixed inset-0 z-40" onClick={closeContextMenu} />
           <div
-            className="fixed z-50 bg-zinc-800 border border-zinc-700 rounded shadow-lg py-1 min-w-[140px]"
-            style={{ left: contextMenu.x, top: contextMenu.y }}
+            className="fixed z-50 py-1 min-w-[160px]"
+            style={{
+              left: contextMenu.x,
+              top: contextMenu.y,
+              background: "#1f1f23",
+              border: "1px solid #3f3f46",
+              borderRadius: 6,
+              boxShadow: "var(--shadow-popover)",
+            }}
           >
             <button
-              className="w-full text-left px-3 py-1 text-xs hover:bg-zinc-700"
+              className="w-full text-left px-3 py-1.5 text-xs hover:bg-zinc-800 text-zinc-300 flex items-center gap-2"
               onClick={() => { createDocument(undefined, contextMenu.type === "folder" ? contextMenu.id : undefined); closeContextMenu(); }}
             >
+              <Icon name="file-plus" size={12} />
               New Document
             </button>
             <button
-              className="w-full text-left px-3 py-1 text-xs hover:bg-zinc-700"
+              className="w-full text-left px-3 py-1.5 text-xs hover:bg-zinc-800 text-zinc-300 flex items-center gap-2"
               onClick={() => { createFolder("New Folder", contextMenu.type === "folder" ? contextMenu.id : undefined); closeContextMenu(); }}
             >
+              <Icon name="folder-plus" size={12} />
               New Folder
             </button>
             {contextMenu.type === "folder" && contextMenu.id && (
               <>
-                <hr className="border-zinc-700 my-1" />
+                <hr className="my-1" style={{ borderColor: "#27272a" }} />
                 <button
-                  className="w-full text-left px-3 py-1 text-xs hover:bg-zinc-700"
+                  className="w-full text-left px-3 py-1.5 text-xs hover:bg-zinc-800 text-zinc-300 flex items-center gap-2"
                   onClick={() => {
                     const folder = folders.find((f) => f.id === contextMenu.id);
                     if (folder) setRenaming({ id: folder.id, type: "folder", name: folder.name });
                     closeContextMenu();
                   }}
                 >
+                  <Icon name="pencil" size={12} />
                   Rename
                 </button>
                 <button
-                  className="w-full text-left px-3 py-1 text-xs text-red-400 hover:bg-zinc-700"
+                  className="w-full text-left px-3 py-1.5 text-xs hover:bg-zinc-800 text-red-400 flex items-center gap-2"
                   onClick={() => { if (contextMenu.id && confirm("Delete folder and all its documents?")) deleteFolder(contextMenu.id); closeContextMenu(); }}
                 >
+                  <Icon name="trash" size={12} />
                   Delete Folder
                 </button>
               </>
             )}
             {contextMenu.type === "document" && contextMenu.id && (
               <>
-                <hr className="border-zinc-700 my-1" />
+                <hr className="my-1" style={{ borderColor: "#27272a" }} />
                 <button
-                  className="w-full text-left px-3 py-1 text-xs hover:bg-zinc-700"
+                  className="w-full text-left px-3 py-1.5 text-xs hover:bg-zinc-800 text-zinc-300 flex items-center gap-2"
                   onClick={() => {
                     const doc = documents.find((d) => d.id === contextMenu.id);
                     if (doc) setRenaming({ id: doc.id, type: "document", name: doc.title });
                     closeContextMenu();
                   }}
                 >
+                  <Icon name="pencil" size={12} />
                   Rename
                 </button>
                 <button
-                  className="w-full text-left px-3 py-1 text-xs text-red-400 hover:bg-zinc-700"
+                  className="w-full text-left px-3 py-1.5 text-xs hover:bg-zinc-800 text-red-400 flex items-center gap-2"
                   onClick={() => { if (contextMenu.id) deleteDocument(contextMenu.id); closeContextMenu(); }}
                 >
+                  <Icon name="trash" size={12} />
                   Delete Document
                 </button>
               </>

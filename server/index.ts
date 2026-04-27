@@ -11,6 +11,7 @@ import undo from "./routes/undo";
 import style from "./routes/style";
 import exportRoutes from "./routes/export";
 import settingsRoutes from "./routes/settings";
+import planRoutes from "./routes/plans";
 import { mcpClientManager } from "./lib/mcp/clientManager";
 
 const app = new Hono();
@@ -30,6 +31,7 @@ app.route("/api", undo);
 app.route("/api", style);
 app.route("/api", exportRoutes);
 app.route("/api", settingsRoutes);
+app.route("/api", planRoutes);
 
 // Init external MCP connections on startup
 mcpClientManager.initAll().catch((err) =>

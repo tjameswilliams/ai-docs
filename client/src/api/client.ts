@@ -3,6 +3,7 @@ import type {
   Folder,
   Document,
   ChatMessage,
+  Plan,
 } from "../types";
 
 async function request<T>(
@@ -133,6 +134,24 @@ export const api = {
     request<{ guide: string; examples: string[]; metadata: any }>(`/projects/${projectId}/style/generate`, { method: "POST" }),
   updateStyleProfile: (projectId: string, guide: string) =>
     request<{ success: boolean }>(`/projects/${projectId}/style/profile`, { method: "PUT", body: JSON.stringify({ guide }) }),
+
+  // Plans
+  getActivePlan: (projectId: string) =>
+    request<Plan | null>(`/projects/${projectId}/plans/active`),
+  getPlan: (planId: string) =>
+    request<Plan>(`/plans/${planId}`),
+  updatePlanStep: (planId: string, stepId: string, data: Record<string, unknown>) =>
+    request<{ success: boolean }>(`/plans/${planId}/steps/${stepId}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  updatePlan: (planId: string, data: Record<string, unknown>) =>
+    request<{ success: boolean }>(`/plans/${planId}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  deletePlan: (planId: string) =>
+    request<{ success: boolean }>(`/plans/${planId}`, { method: "DELETE" }),
 
   // MCP Servers
   mcpServers: {

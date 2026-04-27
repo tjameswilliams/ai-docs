@@ -93,6 +93,28 @@ export const styleProfiles = sqliteTable("style_profiles", {
   updatedAt: text("updated_at").notNull(),
 });
 
+export const plans = sqliteTable("plans", {
+  id: text("id").primaryKey(),
+  projectId: text("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
+  title: text("title").notNull(),
+  description: text("description").default(""),
+  status: text("status").notNull().default("draft"), // draft, approved, in_progress, completed, archived
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+});
+
+export const planSteps = sqliteTable("plan_steps", {
+  id: text("id").primaryKey(),
+  planId: text("plan_id").notNull().references(() => plans.id, { onDelete: "cascade" }),
+  parentId: text("parent_id"), // nullable, for sub-steps
+  title: text("title").notNull(),
+  description: text("description").default(""),
+  status: text("status").notNull().default("pending"), // pending, in_progress, completed, skipped
+  order: integer("order").notNull().default(0),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+});
+
 export const mcpServers = sqliteTable("mcp_servers", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),

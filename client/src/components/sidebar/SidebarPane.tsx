@@ -1,12 +1,74 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useStore } from "../../store";
 import { FolderTree } from "./FolderTree";
 import { SearchPanel } from "./SearchPanel";
+import { Icon, IconButton, Kbd, SectionLabel, Avatar } from "../ui";
 
-export function SidebarPane() {
+function ProjectPicker() {
   const projects = useStore((s) => s.projects);
   const project = useStore((s) => s.project);
   const loadProject = useStore((s) => s.loadProject);
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      if (!ref.current?.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [open]);
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="w-full flex items-center gap-2 px-2.5 transition-colors hover:bg-[rgba(63,63,70,0.4)]"
+        style={{
+          height: 30,
+          background: "#1c1c20",
+          border: "1px solid #27272a",
+          borderRadius: 5,
+          fontSize: 12,
+          color: "#e4e4e7",
+        }}
+      >
+        <Icon name="folder" size={12} className="text-zinc-500 shrink-0" />
+        <span className="flex-1 truncate text-left">{project?.name || "No project"}</span>
+        <Icon name="caret-d" size={11} className="text-zinc-500 shrink-0" />
+      </button>
+      {open && projects.length > 0 && (
+        <div
+          className="absolute left-0 right-0 mt-1 z-30 max-h-72 overflow-y-auto"
+          style={{
+            background: "#1f1f23",
+            border: "1px solid #3f3f46",
+            borderRadius: 6,
+            boxShadow: "var(--shadow-popover)",
+          }}
+        >
+          {projects.map((p) => (
+            <button
+              key={p.id}
+              onClick={() => { loadProject(p.id); setOpen(false); }}
+              className="w-full text-left px-3 py-1.5 text-xs hover:bg-zinc-800 flex items-center gap-2"
+              style={{ color: p.id === project?.id ? "#fafafa" : "#a1a1aa" }}
+            >
+              <Icon name="folder" size={11} className="shrink-0" />
+              <span className="truncate flex-1">{p.name}</span>
+              {p.id === project?.id && <Icon name="check" size={11} className="text-blue-400" />}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function SidebarPane() {
+  const project = useStore((s) => s.project);
+  const settings = useStore((s) => s.settings);
   const createProject = useStore((s) => s.createProject);
   const updateProject = useStore((s) => s.updateProject);
   const deleteProject = useStore((s) => s.deleteProject);
@@ -15,11 +77,14 @@ export function SidebarPane() {
   const [editingName, setEditingName] = useState(false);
   const [editName, setEditName] = useState("");
   const [showSearch, setShowSearch] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
 
-  // Cmd+Shift+F to toggle search
+  // Cmd+K and Cmd+Shift+F both toggle search
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === "f") {
+      const cmdK = (e.metaKey || e.ctrlKey) && e.key === "k";
+      const cmdShiftF = (e.metaKey || e.ctrlKey) && e.shiftKey && e.key === "f";
+      if (cmdK || cmdShiftF) {
         e.preventDefault();
         setShowSearch((v) => !v);
       }
@@ -51,9 +116,49 @@ export function SidebarPane() {
   };
 
   return (
-    <div className="h-full flex flex-col">
-      {/* Project selector */}
-      <div className="p-2 border-b border-zinc-800">
+    <div
+      className="h-full flex flex-col"
+      style={{
+        background: "var(--gradient-sidebar)",
+        borderRight: "1px solid #27272a",
+      }}
+    >
+      {/* Top: search bar */}
+      <div className="px-2.5 pt-2.5 pb-1.5 shrink-0">
+        <div
+          className="flex items-center gap-1.5 transition-colors focus-within:border-[#3b82f6]"
+          style={{
+            padding: "0 8px",
+            height: 28,
+            background: "#1c1c20",
+            border: "1px solid #27272a",
+            borderRadius: 5,
+          }}
+        >
+          <Icon name="search" size={12} className="text-zinc-500 shrink-0" />
+          <input
+            value={searchQuery}
+            onChange={(e) => {
+              setSearchQuery(e.target.value);
+              if (e.target.value && !showSearch) setShowSearch(true);
+            }}
+            onFocus={() => { if (searchQuery) setShowSearch(true); }}
+            placeholder="Search documents"
+            style={{
+              flex: 1,
+              background: "transparent",
+              color: "#e4e4e7",
+              fontSize: 11.5,
+              border: "none",
+              outline: "none",
+            }}
+          />
+          <Kbd>⌘K</Kbd>
+        </div>
+      </div>
+
+      {/* Project picker + actions row */}
+      <div className="px-2.5 pb-2 shrink-0">
         {editingName ? (
           <input
             value={editName}
@@ -64,78 +169,102 @@ export function SidebarPane() {
             }}
             onBlur={handleRename}
             autoFocus
-            className="w-full px-2 py-1 text-xs rounded bg-zinc-800 border border-blue-500 focus:outline-none"
+            className="w-full px-2.5 outline-none"
+            style={{
+              height: 30,
+              background: "#1c1c20",
+              border: "1px solid #3b82f6",
+              borderRadius: 5,
+              fontSize: 12,
+              color: "#fafafa",
+            }}
           />
         ) : (
-          <select
-            value={project?.id || ""}
-            onChange={(e) => e.target.value && loadProject(e.target.value)}
-            className="w-full px-2 py-1 text-xs rounded bg-zinc-800 border border-zinc-700 focus:border-blue-500 focus:outline-none"
-          >
-            {projects.map((p) => (
-              <option key={p.id} value={p.id}>{p.name}</option>
-            ))}
-          </select>
+          <ProjectPicker />
         )}
-        <div className="flex gap-1 mt-1">
-          <button
-            onClick={() => setShowNewProject(true)}
-            className="flex-1 text-xs text-zinc-400 hover:text-zinc-200 py-1 rounded hover:bg-zinc-800"
-          >
-            + New
-          </button>
+        <div className="flex items-center gap-0.5 mt-1.5">
+          <IconButton icon="folder-plus" size="sm" tooltip="New project" onClick={() => setShowNewProject(true)} />
           {project && !editingName && (
-            <button
-              onClick={startRename}
-              className="text-xs text-zinc-500 hover:text-zinc-200 px-2 py-1 rounded hover:bg-zinc-800"
-            >
-              Rename
-            </button>
+            <IconButton icon="pencil" size="sm" tooltip="Rename project" onClick={startRename} />
           )}
-          <button
-            onClick={() => setShowSearch((v) => !v)}
-            className={`text-xs px-2 py-1 rounded hover:bg-zinc-800 ${showSearch ? "text-blue-400" : "text-zinc-500 hover:text-zinc-200"}`}
-            title="Search documents (Cmd+Shift+F)"
-          >
-            Search
-          </button>
           {project && (
-            <button
-              onClick={() => {
-                if (confirm(`Delete "${project.name}"?`)) deleteProject(project.id);
-              }}
-              className="text-xs text-zinc-500 hover:text-red-400 px-2 py-1 rounded hover:bg-zinc-800"
-            >
-              Del
-            </button>
+            <IconButton
+              icon="trash"
+              size="sm"
+              tooltip="Delete project"
+              onClick={() => { if (confirm(`Delete "${project.name}"?`)) deleteProject(project.id); }}
+            />
+          )}
+          <div className="flex-1" />
+          {project && (
+            <IconButton
+              icon="file-plus"
+              size="sm"
+              tooltip="New document"
+              onClick={() => useStore.getState().createDocument()}
+            />
           )}
         </div>
         {showNewProject && (
-          <div className="mt-1 flex gap-1">
+          <div className="mt-2 flex gap-1">
             <input
               value={newProjectName}
               onChange={(e) => setNewProjectName(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handleCreateProject()}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleCreateProject();
+                if (e.key === "Escape") setShowNewProject(false);
+              }}
               placeholder="Project name"
               autoFocus
-              className="flex-1 px-2 py-1 text-xs rounded bg-zinc-800 border border-zinc-700 focus:border-blue-500 focus:outline-none"
+              className="flex-1 px-2 outline-none"
+              style={{
+                height: 26,
+                background: "#1c1c20",
+                border: "1px solid #3b82f6",
+                borderRadius: 5,
+                fontSize: 11.5,
+                color: "#e4e4e7",
+              }}
             />
-            <button onClick={handleCreateProject} className="text-xs text-blue-400 px-2">OK</button>
-            <button onClick={() => setShowNewProject(false)} className="text-xs text-zinc-500 px-1">X</button>
           </div>
         )}
       </div>
 
-      {/* Search panel */}
+      {/* Search panel (when opened) */}
       {showSearch && project && (
         <SearchPanel
           projectId={project.id}
-          onClose={() => setShowSearch(false)}
+          onClose={() => { setShowSearch(false); setSearchQuery(""); }}
         />
       )}
 
-      {/* Folder tree */}
-      <FolderTree />
+      {!showSearch && (
+        <>
+          <div className="px-3 pt-2 pb-1 shrink-0">
+            <SectionLabel>Documents</SectionLabel>
+          </div>
+          <FolderTree />
+        </>
+      )}
+
+      {/* User row */}
+      <div
+        className="flex items-center gap-2 px-2.5 py-2 shrink-0"
+        style={{
+          background: "#0f0f12",
+          borderTop: "1px solid #27272a",
+        }}
+      >
+        <Avatar kind="user" size={26} initials={(settings.userInitials as string) || "U"} />
+        <div className="flex-1 min-w-0">
+          <div className="truncate" style={{ fontSize: 11.5, fontWeight: 500, color: "#e4e4e7" }}>
+            {settings.userName || "Local"}
+          </div>
+          <div className="truncate" style={{ fontSize: 9.5, color: "#71717a" }}>
+            {settings.model || "claude-sonnet"}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

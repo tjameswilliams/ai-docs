@@ -47,6 +47,7 @@ export async function sendChatMessage(content: string, attachments?: ChatAttachm
         projectId: getState().project?.id ?? null,
         activeDocumentId: getState().activeDocument?.id ?? null,
         editorContext: getState().editorContext ?? undefined,
+        chatMode: getState().chatMode,
       }),
       signal: abortController.signal,
     });
@@ -135,6 +136,10 @@ export async function sendChatMessage(content: string, attachments?: ChatAttachm
 
         if (parsed.type === "context_status") {
           setState({ contextStatus: { used: parsed.used as number, total: parsed.total as number } });
+        }
+
+        if (parsed.type === "plan_updated") {
+          await getState().loadActivePlan();
         }
 
         if (parsed.type === "summarizing") {

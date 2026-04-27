@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import type { Editor } from "@tiptap/react";
+import { IconButton } from "../ui";
 
 interface FindReplaceBarProps {
   editor: Editor | null;
@@ -161,10 +162,24 @@ export function FindReplaceBar({ editor, onClose }: FindReplaceBarProps) {
     }
   };
 
+  const inputStyle = {
+    background: "#1c1c20",
+    border: "1px solid #27272a",
+    color: "#e4e4e7",
+    fontSize: 12,
+    height: 26,
+  };
+
   return (
-    <div className="px-3 py-2 border-b border-zinc-800 bg-zinc-900 flex items-center gap-2 text-xs">
-      {/* Find input */}
-      <div className="flex items-center gap-1.5 flex-1 min-w-0">
+    <div
+      className="flex items-center gap-2 px-3 py-2 shrink-0"
+      style={{
+        background: "#1f1f23",
+        borderBottom: "1px solid #27272a",
+        boxShadow: "var(--shadow-popover)",
+      }}
+    >
+      <div className="flex items-center gap-1 flex-1 min-w-0">
         <div className="relative flex-1 min-w-0">
           <input
             ref={findInputRef}
@@ -172,59 +187,75 @@ export function FindReplaceBar({ editor, onClose }: FindReplaceBarProps) {
             onChange={(e) => setFindText(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder="Find"
-            className="w-full px-2 py-1 pr-16 rounded bg-zinc-800 border border-zinc-700 focus:border-blue-500 focus:outline-none text-zinc-200 placeholder-zinc-600"
+            className="w-full pl-2 pr-16 rounded-[5px] outline-none focus:border-[#3b82f6] placeholder-zinc-600"
+            style={inputStyle}
           />
           {findText && (
-            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-zinc-500 tabular-nums">
-              {matchCount > 0 ? `${currentMatch}/${matchCount}` : "0 results"}
+            <span
+              className="absolute right-2 top-1/2 -translate-y-1/2 font-mono"
+              style={{ fontSize: 9.5, color: "#71717a" }}
+            >
+              {matchCount > 0 ? `${currentMatch}/${matchCount}` : "0"}
             </span>
           )}
         </div>
-        <button onClick={goToPrev} disabled={matchCount === 0} className="px-1.5 py-1 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-400 disabled:opacity-30" title="Previous (Shift+Enter)">
-          ↑
-        </button>
-        <button onClick={goToNext} disabled={matchCount === 0} className="px-1.5 py-1 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-400 disabled:opacity-30" title="Next (Enter)">
-          ↓
-        </button>
+        <IconButton icon="caret-u" size="sm" tooltip="Previous (⇧↵)" disabled={matchCount === 0} onClick={goToPrev} />
+        <IconButton icon="caret-d" size="sm" tooltip="Next (↵)" disabled={matchCount === 0} onClick={goToNext} />
         <button
           onClick={() => setCaseSensitive(!caseSensitive)}
-          className={`px-1.5 py-1 rounded text-[10px] font-medium ${caseSensitive ? "bg-blue-600/30 text-blue-400 border border-blue-500/30" : "bg-zinc-800 text-zinc-500 hover:bg-zinc-700"}`}
+          className="rounded-[5px] transition-colors"
           title="Case sensitive"
+          style={{
+            height: 24, width: 24,
+            fontSize: 10,
+            fontWeight: 500,
+            color: caseSensitive ? "#60a5fa" : "#71717a",
+            background: caseSensitive ? "rgba(59,130,246,0.15)" : "transparent",
+            border: caseSensitive ? "1px solid rgba(59,130,246,0.3)" : "1px solid transparent",
+          }}
         >
           Aa
         </button>
       </div>
 
-      {/* Replace input */}
       {showReplace && (
-        <div className="flex items-center gap-1.5 flex-1 min-w-0">
+        <div className="flex items-center gap-1 flex-1 min-w-0">
           <input
             value={replaceText}
             onChange={(e) => setReplaceText(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder="Replace"
-            className="flex-1 min-w-0 px-2 py-1 rounded bg-zinc-800 border border-zinc-700 focus:border-blue-500 focus:outline-none text-zinc-200 placeholder-zinc-600"
+            className="flex-1 min-w-0 px-2 rounded-[5px] outline-none focus:border-[#3b82f6] placeholder-zinc-600"
+            style={inputStyle}
           />
-          <button onClick={replaceCurrent} disabled={matchCount === 0} className="px-2 py-1 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-400 disabled:opacity-30" title="Replace">
+          <button
+            onClick={replaceCurrent}
+            disabled={matchCount === 0}
+            className="px-2 rounded-[5px] transition-colors disabled:opacity-40"
+            style={{ height: 24, fontSize: 10.5, color: "#a1a1aa", background: "#27272a" }}
+            title="Replace"
+          >
             Replace
           </button>
-          <button onClick={replaceAll} disabled={matchCount === 0} className="px-2 py-1 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-400 disabled:opacity-30" title="Replace all">
+          <button
+            onClick={replaceAll}
+            disabled={matchCount === 0}
+            className="px-2 rounded-[5px] transition-colors disabled:opacity-40"
+            style={{ height: 24, fontSize: 10.5, color: "#a1a1aa", background: "#27272a" }}
+            title="Replace all"
+          >
             All
           </button>
         </div>
       )}
 
-      <button
+      <IconButton
+        icon={showReplace ? "minus" : "plus"}
+        size="sm"
+        tooltip={showReplace ? "Hide replace" : "Show replace"}
         onClick={() => setShowReplace(!showReplace)}
-        className="px-1.5 py-1 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-500 text-[10px]"
-        title={showReplace ? "Hide replace" : "Show replace"}
-      >
-        {showReplace ? "−" : "+"}
-      </button>
-
-      <button onClick={onClose} className="px-1.5 py-1 rounded hover:bg-zinc-800 text-zinc-500" title="Close (Esc)">
-        ×
-      </button>
+      />
+      <IconButton icon="x" size="sm" tooltip="Close (Esc)" onClick={onClose} />
     </div>
   );
 }

@@ -19,7 +19,6 @@ import { useStore } from "../../store";
 import { useAutoSave } from "../../hooks/useAutoSave";
 import { EditorToolbar } from "./EditorToolbar";
 import { FindReplaceBar } from "./FindReplaceBar";
-import { ExportModal } from "./ExportModal";
 import { ImageOverlay } from "./ImageOverlay";
 import { TableExportOverlay } from "./TableExportOverlay";
 import { SourceEditor } from "./SourceEditor";
@@ -74,9 +73,11 @@ export function EditorPane() {
   const activeDocument = useStore((s) => s.activeDocument);
   const updateDocument = useStore((s) => s.updateDocument);
   const setEditorContext = useStore((s) => s.setEditorContext);
+  const setSaveStatus = useStore((s) => s.setSaveStatus);
+  const saveStatus = useStore((s) => s.saveStatus);
+  const cursorLine = useStore((s) => s.editorContext?.cursorLine ?? 1);
   const [mode, setMode] = useState<"wysiwyg" | "source">("wysiwyg");
   const [showFindReplace, setShowFindReplace] = useState(false);
-  const [showExport, setShowExport] = useState(false);
   const [title, setTitle] = useState("");
   const [sourceContent, setSourceContent] = useState("");
   const isUpdatingRef = useRef(false);
@@ -88,14 +89,27 @@ export function EditorPane() {
   const { save } = useAutoSave(
     useCallback(async (data: Record<string, unknown>) => {
       if (activeDocument) {
-        await updateDocument(activeDocument.id, data);
-        // Update our timestamp ref so we don't reload from our own save
-        const fresh = useStore.getState().activeDocument;
-        if (fresh) lastUpdatedAtRef.current = fresh.updatedAt;
+        setSaveStatus("saving");
+        try {
+          await updateDocument(activeDocument.id, data);
+          // Update our timestamp ref so we don't reload from our own save
+          const fresh = useStore.getState().activeDocument;
+          if (fresh) lastUpdatedAtRef.current = fresh.updatedAt;
+          setSaveStatus("saved");
+        } catch (err) {
+          setSaveStatus("dirty");
+          throw err;
+        }
       }
-    }, [activeDocument?.id, updateDocument]),
+    }, [activeDocument?.id, updateDocument, setSaveStatus]),
     800
   );
+
+  // Mark dirty whenever a save is queued (covers title + content changes)
+  const queueSave = useCallback((data: Record<string, unknown>) => {
+    setSaveStatus("dirty");
+    save(data);
+  }, [save, setSaveStatus]);
 
   // Debounced context update to avoid hammering the store on every keystroke
   const updateEditorContext = useCallback((editor: Editor) => {
@@ -128,7 +142,7 @@ export function EditorPane() {
     ],
     editorProps: {
       attributes: {
-        class: "outline-none min-h-full px-12 py-8 max-w-3xl mx-auto",
+        class: "outline-none min-h-[200px]",
       },
       handleDrop(view, event, _slice, moved) {
         if (moved || !event.dataTransfer?.files.length) return false;
@@ -171,7 +185,7 @@ export function EditorPane() {
       if (isUpdatingRef.current) return;
       let markdown = (editor.storage.markdown as any)?.getMarkdown?.() ?? editor.getText();
       markdown = mathHtmlToMarkdown(markdown);
-      save({ content: markdown });
+      queueSave({ content: markdown });
       updateEditorContext(editor);
     },
     onSelectionUpdate: ({ editor }) => {
@@ -233,12 +247,12 @@ export function EditorPane() {
 
   const handleTitleChange = (newTitle: string) => {
     setTitle(newTitle);
-    save({ title: newTitle });
+    queueSave({ title: newTitle });
   };
 
   const handleSourceChange = (content: string) => {
     setSourceContent(content);
-    save({ content });
+    queueSave({ content });
   };
 
   const handleModeSwitch = (newMode: "wysiwyg" | "source") => {
@@ -257,91 +271,122 @@ export function EditorPane() {
 
   if (!activeDocument) {
     return (
-      <div className="h-full flex items-center justify-center text-zinc-500 text-sm">
+      <div
+        className="h-full flex items-center justify-center text-sm"
+        style={{ background: "var(--gradient-canvas)", color: "#71717a" }}
+      >
         Select or create a document to start editing
       </div>
     );
   }
 
+  const wordCount = activeDocument.wordCount ?? 0;
+
   return (
-    <div className="h-full flex flex-col bg-zinc-950">
-      {/* Title bar */}
-      <div className="flex items-center px-6 py-2 border-b border-zinc-800 bg-zinc-900">
-        <input
-          value={title}
-          onChange={(e) => handleTitleChange(e.target.value)}
-          className="flex-1 bg-transparent text-lg font-semibold outline-none text-zinc-100 placeholder-zinc-600"
-          placeholder="Document title"
-        />
-        <div className="flex items-center gap-2 ml-4">
-          <span className="text-xs text-zinc-500">
-            {activeDocument.wordCount ?? 0} words
-          </span>
-          <button
-            onClick={() => { useStore.getState().undo(); }}
-            disabled={!useStore.getState().canUndo}
-            className="text-xs text-zinc-400 hover:text-zinc-200 px-1.5 py-0.5 rounded hover:bg-zinc-800 disabled:opacity-30 disabled:cursor-default"
-            title="Undo AI changes (Cmd+Z outside editor)"
-          >
-            ↩
-          </button>
-          <button
-            onClick={() => { useStore.getState().redo(); }}
-            disabled={!useStore.getState().canRedo}
-            className="text-xs text-zinc-400 hover:text-zinc-200 px-1.5 py-0.5 rounded hover:bg-zinc-800 disabled:opacity-30 disabled:cursor-default"
-            title="Redo AI changes (Cmd+Shift+Z outside editor)"
-          >
-            ↪
-          </button>
-          <button
-            onClick={() => setShowExport(true)}
-            className="text-xs text-zinc-400 hover:text-zinc-200 px-2 py-0.5 rounded hover:bg-zinc-800"
-          >
-            Export
-          </button>
-          <div className="flex bg-zinc-800 rounded overflow-hidden">
-            <button
-              onClick={() => handleModeSwitch("wysiwyg")}
-              className={`px-2 py-0.5 text-xs ${mode === "wysiwyg" ? "bg-zinc-600 text-white" : "text-zinc-400 hover:text-zinc-200"}`}
-            >
-              Visual
-            </button>
-            <button
-              onClick={() => handleModeSwitch("source")}
-              className={`px-2 py-0.5 text-xs ${mode === "source" ? "bg-zinc-600 text-white" : "text-zinc-400 hover:text-zinc-200"}`}
-            >
-              Source
-            </button>
-          </div>
-        </div>
-      </div>
+    <div className="h-full flex flex-col" style={{ background: "var(--gradient-canvas)" }}>
+      {/* Toolbar (44px) — also where the Visual/Source segmented toggle lives */}
+      {mode === "wysiwyg" && <EditorToolbar editor={editor} />}
 
       {showFindReplace && mode === "wysiwyg" && (
         <FindReplaceBar editor={editor} onClose={() => setShowFindReplace(false)} />
       )}
 
+      {/* Document body */}
       {mode === "wysiwyg" ? (
-        <>
-          <EditorToolbar editor={editor} />
-          <div className="flex-1 overflow-auto" ref={editorContainerRef}>
-            <EditorContent editor={editor} className="min-h-full" />
-            <ImageOverlay containerRef={editorContainerRef} />
-            <TableExportOverlay containerRef={editorContainerRef} />
+        <div className="flex-1 overflow-auto" ref={editorContainerRef}>
+          <div className="max-w-3xl mx-auto px-12 pt-10 pb-16">
+            <input
+              value={title}
+              onChange={(e) => handleTitleChange(e.target.value)}
+              className="w-full bg-transparent outline-none placeholder-zinc-700 mb-6"
+              placeholder="Document title"
+              style={{
+                fontSize: 32,
+                fontWeight: 600,
+                letterSpacing: "-0.02em",
+                color: "#fafafa",
+                lineHeight: 1.15,
+              }}
+            />
+            <EditorContent editor={editor} />
           </div>
-        </>
+          <ImageOverlay containerRef={editorContainerRef} />
+          <TableExportOverlay containerRef={editorContainerRef} />
+        </div>
       ) : (
         <div className="flex-1 overflow-auto">
+          <div className="max-w-3xl mx-auto px-12 pt-10 pb-16">
+            <input
+              value={title}
+              onChange={(e) => handleTitleChange(e.target.value)}
+              className="w-full bg-transparent outline-none placeholder-zinc-700 mb-6"
+              placeholder="Document title"
+              style={{
+                fontSize: 32,
+                fontWeight: 600,
+                letterSpacing: "-0.02em",
+                color: "#fafafa",
+                lineHeight: 1.15,
+              }}
+            />
+          </div>
           <SourceEditor content={sourceContent} onChange={handleSourceChange} />
         </div>
       )}
 
-      {showExport && (
-        <ExportModal
-          documentId={activeDocument.id}
-          documentTitle={activeDocument.title}
-          onClose={() => setShowExport(false)}
-        />
-      )}
+      {/* Status bar (22px) */}
+      <div
+        className="flex items-center px-3 gap-3 shrink-0 font-mono"
+        style={{
+          height: 22,
+          background: "#0a0a0c",
+          borderTop: "1px solid #27272a",
+          fontSize: 10,
+          color: "#52525b",
+        }}
+      >
+        <span>{wordCount} words</span>
+        <span style={{ color: "#3f3f46" }}>·</span>
+        <span>ln {cursorLine}</span>
+        <span style={{ color: "#3f3f46" }}>·</span>
+        <span style={{ color: saveStatus === "saved" ? "#10b981" : "#f59e0b" }}>
+          {saveStatus === "saving" ? "saving…" : saveStatus === "dirty" ? "unsaved" : "saved"}
+        </span>
+        <span className="flex-1" />
+        <div
+          className="inline-flex items-center"
+          style={{ background: "#0f0f12", border: "1px solid #27272a", borderRadius: 4, padding: 1 }}
+        >
+          <button
+            onClick={() => handleModeSwitch("wysiwyg")}
+            className="transition-colors"
+            style={{
+              padding: "1px 7px",
+              borderRadius: 3,
+              fontSize: 9.5,
+              color: mode === "wysiwyg" ? "#fafafa" : "#71717a",
+              background: mode === "wysiwyg" ? "linear-gradient(180deg, #2d2d33 0%, #232328 100%)" : "transparent",
+              border: mode === "wysiwyg" ? "1px solid #3f3f46" : "1px solid transparent",
+            }}
+          >
+            Visual
+          </button>
+          <button
+            onClick={() => handleModeSwitch("source")}
+            className="transition-colors"
+            style={{
+              padding: "1px 7px",
+              borderRadius: 3,
+              fontSize: 9.5,
+              color: mode === "source" ? "#fafafa" : "#71717a",
+              background: mode === "source" ? "linear-gradient(180deg, #2d2d33 0%, #232328 100%)" : "transparent",
+              border: mode === "source" ? "1px solid #3f3f46" : "1px solid transparent",
+            }}
+          >
+            Source
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

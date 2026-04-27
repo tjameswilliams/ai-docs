@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { api } from "../api/client";
 import { retryLastMessage as chatRetry, restartFromMessage as chatRestart } from "../lib/chatStream";
-import type { Project, Folder, Document, ChatMessage } from "../types";
+import type { Project, Folder, Document, ChatMessage, Plan } from "../types";
 
 interface AppState {
   // Projects
@@ -40,6 +40,13 @@ interface AppState {
   } | null;
   setEditorContext: (ctx: AppState["editorContext"]) => void;
 
+  // Plans
+  activePlan: Plan | null;
+  loadActivePlan: () => Promise<void>;
+  chatMode: "chat" | "plan";
+  toggleChatMode: () => void;
+  setChatMode: (mode: "chat" | "plan") => void;
+
   // Chat
   messages: ChatMessage[];
   isStreaming: boolean;
@@ -57,8 +64,12 @@ interface AppState {
   updateSettings: (data: Record<string, string>) => Promise<void>;
   showSettings: boolean;
   setShowSettings: (v: boolean) => void;
-  showStyleGuide: boolean;
-  setShowStyleGuide: (v: boolean) => void;
+  showExport: boolean;
+  setShowExport: (v: boolean) => void;
+
+  // Save status (drives the topbar Saved/Dirty pill)
+  saveStatus: "saved" | "dirty" | "saving";
+  setSaveStatus: (s: "saved" | "dirty" | "saving") => void;
 
   // Undo/Redo
   canUndo: boolean;
@@ -79,7 +90,7 @@ export const useStore = create<AppState>((set, get) => ({
   loadProject: async (id) => {
     const project = await api.getProject(id);
     set({ project, activeDocument: null });
-    await Promise.all([get().loadFolders(), get().loadDocuments(), get().loadMessages()]);
+    await Promise.all([get().loadFolders(), get().loadDocuments(), get().loadMessages(), get().loadActivePlan()]);
     get().refreshUndoState();
   },
   createProject: async (name) => {
@@ -102,7 +113,7 @@ export const useStore = create<AppState>((set, get) => ({
       if (projects.length > 0) {
         await get().loadProject(projects[0].id);
       } else {
-        set({ project: null, folders: [], documents: [], activeDocument: null, messages: [] });
+        set({ project: null, folders: [], documents: [], activeDocument: null, messages: [], activePlan: null });
       }
     }
   },
@@ -170,6 +181,22 @@ export const useStore = create<AppState>((set, get) => ({
   editorContext: null,
   setEditorContext: (ctx) => set({ editorContext: ctx }),
 
+  // Plans
+  activePlan: null,
+  loadActivePlan: async () => {
+    const project = get().project;
+    if (!project) return;
+    try {
+      const plan = await api.getActivePlan(project.id);
+      set({ activePlan: plan });
+    } catch {
+      set({ activePlan: null });
+    }
+  },
+  chatMode: "chat" as "chat" | "plan",
+  toggleChatMode: () => set((s) => ({ chatMode: s.chatMode === "chat" ? "plan" : "chat" })),
+  setChatMode: (mode) => set({ chatMode: mode }),
+
   // Chat
   messages: [],
   isStreaming: false,
@@ -233,8 +260,10 @@ export const useStore = create<AppState>((set, get) => ({
   },
   showSettings: false,
   setShowSettings: (v) => set({ showSettings: v }),
-  showStyleGuide: false,
-  setShowStyleGuide: (v) => set({ showStyleGuide: v }),
+  showExport: false,
+  setShowExport: (v) => set({ showExport: v }),
+  saveStatus: "saved" as "saved" | "dirty" | "saving",
+  setSaveStatus: (s) => set({ saveStatus: s }),
 
   // Undo/Redo
   canUndo: false,

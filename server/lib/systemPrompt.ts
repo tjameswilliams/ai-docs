@@ -7,6 +7,22 @@ interface EditorContext {
   headingPath: string[];
 }
 
+interface PlanStepContext {
+  id: string;
+  title: string;
+  description: string | null;
+  status: string;
+  substeps?: PlanStepContext[];
+}
+
+interface ActivePlanContext {
+  id: string;
+  title: string;
+  description: string | null;
+  status: string;
+  steps: PlanStepContext[];
+}
+
 interface SystemPromptContext {
   projectName?: string;
   folders?: Array<{ id: string; name: string; parentId: string | null }>;
@@ -15,6 +31,8 @@ interface SystemPromptContext {
   activeDocumentTitle?: string;
   editorContext?: EditorContext;
   styleGuide?: string;
+  activePlan?: ActivePlanContext;
+  chatMode?: "chat" | "plan";
 }
 
 export function getSystemPrompt(ctx: SystemPromptContext): string {
@@ -33,6 +51,9 @@ Key capabilities:
 - Search the web for information on any topic (web_search)
 - Fetch and read full web pages for deep research (fetch_webpage)
 - Download images from URLs and store them locally (download_image)
+- Create and manage structured project plans with step-by-step execution tracking
+
+When a user describes a large or multi-step project, offer to create a structured plan first using create_plan. Generate clear, actionable steps with sub-steps where appropriate. The plan starts in "draft" status — present it to the user and discuss refinements before they approve it. Do NOT begin executing plan steps while the plan is in "draft" status. Once the user approves, transition the plan to "in_progress" and work through steps sequentially, marking each as "in_progress" when you start it and "completed" when done.
 
 When editing documents, the content is stored as markdown. You can use all standard markdown features including headings, lists, tables, code blocks, links, and images.
 
@@ -78,6 +99,63 @@ ${ctx.styleGuide}
 --- End Writing Style Guide ---`);
   }
 
+  // Active plan context
+  if (ctx.activePlan) {
+    const plan = ctx.activePlan;
+    const planParts: string[] = [];
+    planParts.push(`\n--- Active Plan ---`);
+    planParts.push(`Plan: "${plan.title}" (${plan.status})`);
+    if (plan.description) planParts.push(plan.description);
+    planParts.push("");
+
+    let totalSteps = 0;
+    let completedSteps = 0;
+
+    const statusIcon = (s: string) => {
+      if (s === "completed") return "[x]";
+      if (s === "in_progress") return "[>]";
+      if (s === "skipped") return "[-]";
+      return "[ ]";
+    };
+
+    planParts.push("Steps:");
+    for (let i = 0; i < plan.steps.length; i++) {
+      const step = plan.steps[i];
+      totalSteps++;
+      if (step.status === "completed") completedSteps++;
+
+      // Collapse completed step descriptions to save tokens
+      const desc = step.status === "completed" ? "" : (step.description ? ` — ${step.description}` : "");
+      planParts.push(`${statusIcon(step.status)} ${i + 1}. ${step.title}${desc} [${step.id}]`);
+
+      if (step.substeps) {
+        for (let j = 0; j < step.substeps.length; j++) {
+          const sub = step.substeps[j];
+          totalSteps++;
+          if (sub.status === "completed") completedSteps++;
+          const subDesc = sub.status === "completed" ? "" : (sub.description ? ` — ${sub.description}` : "");
+          planParts.push(`   ${statusIcon(sub.status)} ${i + 1}.${j + 1}. ${sub.title}${subDesc} [${sub.id}]`);
+        }
+      }
+    }
+
+    planParts.push(`\nProgress: ${completedSteps}/${totalSteps} steps completed`);
+
+    if (plan.status === "draft") {
+      planParts.push(`\nThis plan is in DRAFT status. Help the user review and refine it. Ask for feedback, suggest improvements, and use plan tools to modify. Do NOT start executing the steps until the user approves the plan.`);
+    } else if (plan.status === "approved" || plan.status === "in_progress") {
+      planParts.push(`\nWork through the steps sequentially. Mark each step as "in_progress" when you start it and "completed" when done. Always tell the user which step you're working on.
+
+IMPORTANT: After completing the final step, you MUST:
+1. Mark that last step as "completed" using update_plan_step
+2. Mark the overall plan as "completed" using update_plan
+Do NOT finish your response without marking completed steps — this is easy to forget on the last step.`);
+    }
+
+    planParts.push(`--- End Active Plan ---`);
+    parts.push(planParts.join("\n"));
+  }
+
   // Editor context — cursor position, selection, surrounding text
   if (ctx.editorContext) {
     const ec = ctx.editorContext;
@@ -110,6 +188,20 @@ ${ctx.styleGuide}
     editorParts.push(`--- End Editor Context ---`);
 
     parts.push(editorParts.join("\n"));
+  }
+
+  // Plan mode instructions
+  if (ctx.chatMode === "plan") {
+    parts.push(`\n--- PLAN MODE ACTIVE ---
+You are in PLAN MODE. In this mode you are a planning assistant. Your role is to help the user think through their project, break it down into steps, and create a structured plan.
+
+IMPORTANT RULES IN PLAN MODE:
+- Do NOT execute any document, folder, or web tools. Only use plan tools (create_plan, update_plan, add_plan_steps, update_plan_step, remove_plan_steps, get_plan).
+- Focus on understanding the user's goals, asking clarifying questions, and building a comprehensive step-by-step plan.
+- Think critically about the order of steps, dependencies, and potential challenges.
+- Suggest alternative approaches when relevant.
+- When the user is satisfied with the plan, tell them to switch to Chat mode to begin execution.
+--- END PLAN MODE ---`);
   }
 
   return parts.join("\n");

@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { Button, IconButton } from "../ui";
 
 interface ExportModalProps {
   documentId: string;
@@ -99,12 +100,27 @@ export function ExportModal({ documentId, documentTitle, onClose }: ExportModalP
   };
 
   return (
-    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50" onClick={onClose}>
-      <div className="bg-zinc-900 border border-zinc-700 rounded-lg w-[900px] max-w-[95vw] h-[85vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
-        {/* Header */}
-        <div className="px-5 py-3 border-b border-zinc-800 flex items-center justify-between shrink-0">
-          <h2 className="text-sm font-semibold text-zinc-200">Export Document</h2>
-          <button onClick={onClose} className="text-zinc-500 hover:text-zinc-300 text-lg px-1">×</button>
+    <div
+      className="fixed inset-0 flex items-center justify-center z-50"
+      style={{ background: "rgba(0,0,0,0.7)" }}
+      onClick={onClose}
+    >
+      <div
+        className="w-[900px] max-w-[95vw] h-[85vh] flex flex-col overflow-hidden"
+        style={{
+          background: "#1f1f23",
+          border: "1px solid #3f3f46",
+          borderRadius: 8,
+          boxShadow: "var(--shadow-modal)",
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div
+          className="flex items-center justify-between px-4 shrink-0"
+          style={{ height: 44, borderBottom: "1px solid #27272a" }}
+        >
+          <h2 style={{ fontSize: 13, fontWeight: 500, color: "#fafafa" }}>Export Document</h2>
+          <IconButton icon="x" size="sm" tooltip="Close" onClick={onClose} />
         </div>
 
         <div className="flex flex-1 min-h-0">
@@ -176,43 +192,13 @@ export function ExportModal({ documentId, documentTitle, onClose }: ExportModalP
               </label>
             </Section>
 
-            <div className="border-t border-zinc-800 pt-4 space-y-2">
-              <button
-                onClick={handleDownloadPdf}
-                className="w-full py-2 text-xs rounded bg-blue-600 hover:bg-blue-500 text-white font-medium"
-              >
-                Download PDF
-              </button>
-              <button
-                onClick={handleDownloadDocx}
-                className="w-full py-2 text-xs rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300"
-              >
-                Download Word (.docx)
-              </button>
-              <button
-                onClick={handleDownloadHtml}
-                className="w-full py-2 text-xs rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300"
-              >
-                Download HTML
-              </button>
-              <button
-                onClick={handlePrintPdf}
-                className="w-full py-2 text-xs rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300"
-              >
-                Print
-              </button>
-              <button
-                onClick={handleDownloadMarkdown}
-                className="w-full py-2 text-xs rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300"
-              >
-                Download Markdown
-              </button>
-              <button
-                onClick={handleCopyHtml}
-                className="w-full py-2 text-xs rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300"
-              >
-                Copy HTML to Clipboard
-              </button>
+            <div className="pt-3 space-y-1.5" style={{ borderTop: "1px solid #27272a" }}>
+              <Button variant="primary" size="sm" icon="download" onClick={handleDownloadPdf} className="w-full">Download PDF</Button>
+              <Button variant="panel" size="sm" onClick={handleDownloadDocx} className="w-full">Download Word (.docx)</Button>
+              <Button variant="panel" size="sm" onClick={handleDownloadHtml} className="w-full">Download HTML</Button>
+              <Button variant="panel" size="sm" onClick={handlePrintPdf} className="w-full">Print</Button>
+              <Button variant="panel" size="sm" onClick={handleDownloadMarkdown} className="w-full">Download Markdown</Button>
+              <Button variant="ghost" size="sm" icon="copy" onClick={handleCopyHtml} className="w-full">Copy HTML</Button>
             </div>
           </div>
 

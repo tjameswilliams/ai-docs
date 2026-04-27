@@ -4,6 +4,7 @@ import { executeSearchTool, searchToolDefinitions } from "./search";
 import { executeQueryTool, queryToolDefinitions } from "./query";
 import { executeWebTool, webToolDefinitions } from "./web";
 import { executeReferenceTool, referenceToolDefinitions } from "./references";
+import { executePlanTool, planToolDefinitions } from "./plans";
 
 export function getToolDefinitions() {
   return [
@@ -13,6 +14,7 @@ export function getToolDefinitions() {
     ...queryToolDefinitions,
     ...webToolDefinitions,
     ...referenceToolDefinitions,
+    ...planToolDefinitions,
   ];
 }
 
@@ -55,6 +57,10 @@ export async function executeToolCall(
     }
     if (refTools.includes(name)) {
       return await executeReferenceTool(name, args, projectId);
+    }
+    const planTools = planToolDefinitions.map((t) => t.function.name);
+    if (planTools.includes(name)) {
+      return await executePlanTool(name, args, projectId);
     }
 
     return { success: false, result: `Unknown tool: ${name}` };
